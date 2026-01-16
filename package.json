@@ -1,6 +1,6 @@
 {
   "name": "hackwriter",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Writing agent for HackMD",
   "type": "module",
   "main": "dist/cli.js",
@@ -65,4 +65,3 @@
     "node": ">=18.0.0"
   }
 }
-
