@@ -19,7 +19,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint . --fix",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "pnpm run build",
+    "release": "pnpx standard-version && git push --follow-tags && pnpm publish"
   },
   "keywords": [
     "hackmd",
@@ -34,7 +35,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mw866/hackwriter"
+    "url": "https://github.com/EastSun566/hackwriter"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.47",
