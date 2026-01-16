@@ -1,0 +1,67 @@
+{
+  "name": "hackwriter",
+  "version": "0.0.1",
+  "description": "Writing agent for HackMD",
+  "type": "module",
+  "main": "dist/cli.js",
+  "bin": {
+    "hackwriter": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint . --fix",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "hackmd",
+    "ai",
+    "agent",
+    "cli",
+    "markdown",
+    "writing",
+    "llm"
+  ],
+  "author": "Michael Wang <hi@eastsun.me>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mw866/hackwriter"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.47",
+    "@ai-sdk/openai": "^2.0.72",
+    "@hackmd/api": "^2.5.0",
+    "@inquirer/prompts": "^8.0.1",
+    "ai": "^5.0.101",
+    "chalk": "^5.6.2",
+    "commander": "^14.0.2",
+    "ora": "^9.0.0",
+    "uuid": "^13.0.0",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/json-schema": "^7.0.15",
+    "@types/node": "^24.10.1",
+    "@vitest/coverage-v8": "^4.0.13",
+    "@vitest/ui": "^4.0.13",
+    "eslint": "^9.39.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.47.0",
+    "vitest": "^4.0.13"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+
