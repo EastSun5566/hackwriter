@@ -2,36 +2,54 @@
 
 Writing agent for HackMD
 
-## Requirements
+## Install
 
-- Node.js 18+
-- `pnpm`
+```sh
+npx hackwriter
+```
+
+Or install globally:
+
+```sh
+npm i -g hackwriter
+```
+
+## Configure
+
+First run will prompt for setup:
+
+```bash
+hackwriter
+```
+
+You'll need:
+
 - HackMD API token
-- LLM provider API key
+- LLM provider API key (OpenAI or Anthropic)
 
-## Install & Configure
+## Usage
 
-```bash
-pnpm install
-
-pnpm run dev
+```sh
+hackwriter                      # interactive shell
+hackwriter -c "list notes"      # single command
+hackwriter --continue           # resume session
+hackwriter --yolo               # auto-approve all
+hackwriter --debug              # detailed logs
 ```
 
-## Run
+Inside shell: `/help`, `/status`, `/clear`, `exit`
 
-```bash
-pnpm run dev            # interactive shell
-pnpm run dev -- -c "list notes"   # single command
-pnpm run dev -- --continue        # resume previous session
-pnpm run dev -- --yolo            # auto-approve destructive actions
-pnpm run dev -- --debug           # show detailed logs
-```
-
-Inside the shell use `/help`, `/status`, `/clear`, and `exit`.
-
-## What It Does
+## Features
 
 - Lists, reads, creates, updates, deletes HackMD notes (personal & team)
-- Streams agent thoughts/output with tool-call status
-- Persists session history + token usage in `~/.hackwriter/sessions`
-- Asks for confirmation before destructive actions unless `--yolo`
+- Streams agent thoughts with tool-call status
+- Persists sessions in `~/.hackwriter/sessions`
+- Asks confirmation before destructive actions (unless `--yolo`)
+
+## Development
+
+```sh
+pnpm install
+pnpm run dev
+pnpm run test
+```
