@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { AgentMessage } from './MessageTypes';
+import type { AgentMessage } from './MessageTypes.js';
 
 export class MessageBus extends EventEmitter {
   private static instance: MessageBus;

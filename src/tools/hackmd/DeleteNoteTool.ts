@@ -1,7 +1,7 @@
 import type { API } from "@hackmd/api";
-import { Tool, type ToolResult, type ToolSchema } from "../base/Tool";
-import type { ApprovalManager } from "../../agent/ApprovalManager";
-import { handleHackMDError } from "./errorHandler";
+import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.js";
+import type { ApprovalManager } from "../../agent/ApprovalManager.js";
+import { handleHackMDError } from "./errorHandler.js";
 
 interface DeleteNoteParams {
   noteId: string;

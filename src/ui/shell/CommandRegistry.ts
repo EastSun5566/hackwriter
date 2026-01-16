@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import type { AgentExecutor } from '../../agent/AgentExecutor';
+import type { AgentExecutor } from '../../agent/AgentExecutor.js';
 
 type CommandHandler = (args: string[]) => Promise<void> | void;
 

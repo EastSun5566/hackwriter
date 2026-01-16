@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import ora, { type Ora } from 'ora';
-import { MessageBus } from '../../messaging/MessageBus';
-import type { AgentMessage } from '../../messaging/MessageTypes';
+import { MessageBus } from '../../messaging/MessageBus.js';
+import type { AgentMessage } from '../../messaging/MessageTypes.js';
 
 interface ToolCallState {
   name: string;

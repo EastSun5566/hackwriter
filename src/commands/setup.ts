@@ -1,7 +1,7 @@
 import { input, password, select } from '@inquirer/prompts';
 import chalk from 'chalk';
-import { ConfigurationLoader } from '../config/ConfigurationLoader';
-import type { Configuration, LLMProviderType } from '../config/Configuration';
+import { ConfigurationLoader } from '../config/ConfigurationLoader.js';
+import type { Configuration, LLMProviderType } from '../config/Configuration.js';
 
 export async function setupCommand(isAutoTriggered = false): Promise<void> {
   console.log(chalk.bold.cyan('\n🔧 HackWriter Setup\n'));

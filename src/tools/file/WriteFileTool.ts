@@ -1,5 +1,5 @@
-import { Tool, type ToolResult, type ToolSchema } from '../base/Tool';
-import type { ApprovalManager } from '../../agent/ApprovalManager';
+import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.js';
+import type { ApprovalManager } from '../../agent/ApprovalManager.js';
 import { promises as fs } from 'node:fs';
 import { dirname } from 'node:path';
 

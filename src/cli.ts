@@ -3,17 +3,17 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { API } from "@hackmd/api";
-import { AgentExecutor } from "./agent/AgentExecutor";
-import { ConversationContext } from "./agent/ConversationContext";
-import { ApprovalManager } from "./agent/ApprovalManager";
-import { ToolRegistry } from "./tools/base/ToolRegistry";
-import { ConfigurationLoader } from "./config/ConfigurationLoader";
-import { SessionManager } from "./session/SessionManager";
-import { InteractiveShell } from "./ui/shell/InteractiveShell";
-import { setupCommand } from "./commands/setup";
-import type { Agent } from "./agent/Agent";
-import { buildLanguageModel } from "./agent/ModelFactory";
-import { Logger } from "./utils/Logger";
+import { AgentExecutor } from "./agent/AgentExecutor.js";
+import { ConversationContext } from "./agent/ConversationContext.js";
+import { ApprovalManager } from "./agent/ApprovalManager.js";
+import { ToolRegistry } from "./tools/base/ToolRegistry.js";
+import { ConfigurationLoader } from "./config/ConfigurationLoader.js";
+import { SessionManager } from "./session/SessionManager.js";
+import { InteractiveShell } from "./ui/shell/InteractiveShell.js";
+import { setupCommand } from "./commands/setup.js";
+import type { Agent } from "./agent/Agent.js";
+import { buildLanguageModel } from "./agent/ModelFactory.js";
+import { Logger } from "./utils/Logger.js";
 import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -29,7 +29,7 @@ import {
   GetHistoryTool,
   SearchNotesTool,
   ExportNoteTool,
-} from "./tools/hackmd";
+} from "./tools/hackmd/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

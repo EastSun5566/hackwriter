@@ -1,4 +1,4 @@
-import type { Tool } from './Tool';
+import type { Tool } from './Tool.js';
 
 export class ToolRegistry {
   private tools = new Map<string, Tool>();

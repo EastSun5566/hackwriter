@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import type { ModelMessage, ToolContent, ToolResultPart } from 'ai';
-import { Logger } from '../utils/Logger';
+import { Logger } from '../utils/Logger.js';
 
 type ContextRecord =
   | { type: 'message'; data: ModelMessage }

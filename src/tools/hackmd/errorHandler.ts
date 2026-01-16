@@ -1,4 +1,4 @@
-import { ErrorFactory, AppError } from "../../utils/ErrorTypes";
+import { ErrorFactory, AppError } from "../../utils/ErrorTypes.js";
 
 interface ErrorWithResponse {
   response?: {

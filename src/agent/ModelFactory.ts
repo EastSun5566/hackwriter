@@ -1,8 +1,8 @@
 import type { LanguageModel } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
-import type { LLMProvider } from '../config/Configuration';
-import { Logger } from '../utils/Logger';
+import type { LLMProvider } from '../config/Configuration.js';
+import { Logger } from '../utils/Logger.js';
 
 export function buildLanguageModel(provider: LLMProvider, modelId: string): LanguageModel {
   Logger.debug('ModelFactory', 'Building language model', {

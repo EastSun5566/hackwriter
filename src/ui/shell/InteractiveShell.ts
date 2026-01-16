@@ -1,10 +1,10 @@
 import * as readline from 'readline';
 import chalk from 'chalk';
-import type { AgentExecutor } from '../../agent/AgentExecutor';
-import { OutputRenderer } from './OutputRenderer';
-import { CommandRegistry } from './CommandRegistry';
-import { MessageBus } from '../../messaging/MessageBus';
-import { Logger } from '../../utils/Logger';
+import type { AgentExecutor } from '../../agent/AgentExecutor.js';
+import { OutputRenderer } from './OutputRenderer.js';
+import { CommandRegistry } from './CommandRegistry.js';
+import { MessageBus } from '../../messaging/MessageBus.js';
+import { Logger } from '../../utils/Logger.js';
 
 export class InteractiveShell {
   private executor: AgentExecutor;

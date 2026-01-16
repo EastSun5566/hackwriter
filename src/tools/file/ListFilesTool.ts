@@ -1,6 +1,6 @@
 import { promises as fs, type Stats } from 'node:fs';
 import { join, relative } from 'node:path';
-import { Tool, type ToolResult, type ToolSchema } from '../base/Tool';
+import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.js';
 
 interface ListFilesParams {
   directoryPath: string;

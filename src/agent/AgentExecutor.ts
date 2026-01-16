@@ -9,12 +9,12 @@ import type {
 } from 'ai';
 import { jsonSchema, streamText } from 'ai';
 
-import type { Agent } from './Agent';
-import type { ConversationContext } from './ConversationContext';
-import { MessageBus } from '../messaging/MessageBus';
-import { ContextCompressor } from './ContextCompressor';
-import type { ToolResult } from '../tools/base/Tool';
-import { Logger } from '../utils/Logger';
+import type { Agent } from './Agent.js';
+import type { ConversationContext } from './ConversationContext.js';
+import { MessageBus } from '../messaging/MessageBus.js';
+import { ContextCompressor } from './ContextCompressor.js';
+import type { ToolResult } from '../tools/base/Tool.js';
+import { Logger } from '../utils/Logger.js';
 
 export interface ExecutorStatus {
   contextUsage: number;

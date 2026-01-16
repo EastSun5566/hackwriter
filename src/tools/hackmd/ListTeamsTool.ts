@@ -1,6 +1,6 @@
 import type { API } from '@hackmd/api';
 import type { Team } from '@hackmd/api/dist/type.js';
-import { Tool, type ToolResult, type ToolSchema } from '../base/Tool';
+import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.js';
 
 type ListTeamsParams = Record<string, unknown>;
 

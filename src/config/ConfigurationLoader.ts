@@ -1,10 +1,10 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import type { Configuration } from './Configuration';
-import { safeValidateConfiguration } from './ConfigSchema';
-import { ErrorFactory } from '../utils/ErrorTypes';
-import { Logger } from '../utils/Logger';
+import type { Configuration } from './Configuration.js';
+import { safeValidateConfiguration } from './ConfigSchema.js';
+import { ErrorFactory } from '../utils/ErrorTypes.js';
+import { Logger } from '../utils/Logger.js';
 
 export class ConfigurationLoader {
   private static configPath = path.join(
@@ -65,7 +65,7 @@ export class ConfigurationLoader {
       
       if (!validation.success) {
         const errorMessages = validation.errors!
-          .map(e => `  - ${e.path}: ${e.message}`)
+          .map((e: { path: string; message: string }) => `  - ${e.path}: ${e.message}`)
           .join('\n');
           
         throw ErrorFactory.validation(

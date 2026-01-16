@@ -1,6 +1,6 @@
 import type { API } from '@hackmd/api';
 import type { Note } from '@hackmd/api/dist/type.js';
-import { Tool, type ToolResult, type ToolSchema } from '../base/Tool';
+import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.js';
 
 interface SearchNotesParams {
   query: string;
@@ -35,7 +35,7 @@ export class SearchNotesTool extends Tool<SearchNotesParams> {
       const allNotes = await this.hackmdClient.getNoteList();
       const searchTerm = params.query.toLowerCase();
       
-      const matchedNotes = allNotes.filter((note) => 
+      const matchedNotes = allNotes.filter((note: Note) => 
         note.title?.toLowerCase().includes(searchTerm) ||
         note.tags?.some((tag: string) => tag.toLowerCase().includes(searchTerm))
       );

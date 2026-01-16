@@ -1,7 +1,7 @@
 import type { API } from "@hackmd/api";
 import type { Note } from "@hackmd/api/dist/type.js";
-import { Tool, type ToolResult, type ToolSchema } from "../base/Tool";
-import { handleHackMDError } from "./errorHandler";
+import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.js";
+import { handleHackMDError } from "./errorHandler.js";
 
 interface ListNotesParams {
   teamPath?: string; // Optional: if provided, lists team notes

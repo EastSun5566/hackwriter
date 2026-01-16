@@ -1,5 +1,5 @@
 import type { API } from '@hackmd/api';
-import { Tool, type ToolResult, type ToolSchema } from '../base/Tool';
+import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.js';
 import { promises as fs } from 'node:fs';
 
 interface ExportNoteParams {

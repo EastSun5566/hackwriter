@@ -1,5 +1,5 @@
-import type { ExecutorStatus } from '../agent/AgentExecutor';
-import type { ToolResult } from '../tools/base/Tool';
+import type { ExecutorStatus } from '../agent/AgentExecutor.js';
+import type { ToolResult } from '../tools/base/Tool.js';
 
 export type AgentMessage =
   | { type: 'step_started'; stepNumber: number }
