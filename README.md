@@ -18,7 +18,7 @@ npm i -g hackwriter
 
 First run will prompt for setup:
 
-```bash
+```sh
 hackwriter
 ```
 
