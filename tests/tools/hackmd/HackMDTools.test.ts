@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import { NotePermissionRole } from "@hackmd/api/dist/type.js";
+
 import { ListNotesTool } from "../../../src/tools/hackmd/ListNotesTool.ts";
 import { ReadNoteTool } from "../../../src/tools/hackmd/ReadNoteTool.ts";
 import { SearchNotesTool } from "../../../src/tools/hackmd/SearchNotesTool.ts";
 import { CreateNoteTool } from "../../../src/tools/hackmd/CreateNoteTool.ts";
+import { UpdateNoteTool } from "../../../src/tools/hackmd/UpdateNoteTool.ts";
+import { DeleteNoteTool } from "../../../src/tools/hackmd/DeleteNoteTool.ts";
 import {
   createMockHackMDClient,
   createMockNote,
@@ -287,8 +291,8 @@ describe("CreateNoteTool", () => {
     await tool.call({
       title: "Public Note",
       content: "# Content",
-      readPermission: "guest",
-      writePermission: "signed_in",
+      readPermission: NotePermissionRole.GUEST,
+      writePermission: NotePermissionRole.SIGNED_IN,
     });
 
     expect(mockClient.createNote).toHaveBeenCalledWith(
@@ -307,6 +311,195 @@ describe("CreateNoteTool", () => {
     const result = await tool.call({
       title: "Note",
       content: "# Content",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("Permission denied");
+  });
+
+  it("should create team note with teamPath parameter", async () => {
+    const mockNote = createMockNote({
+      id: "team-note",
+      title: "Team Note",
+    });
+
+    mockClient.createTeamNote.mockResolvedValue(mockNote);
+
+    const result = await tool.call({
+      title: "Team Note",
+      content: "# Team Content",
+      teamPath: "engineering",
+    });
+
+    expect(mockApproval.request).toHaveBeenCalledWith(
+      "create_note",
+      "create_team_note",
+      expect.stringContaining("engineering"),
+    );
+    expect(mockClient.createTeamNote).toHaveBeenCalledWith("engineering", {
+      title: "Team Note",
+      content: "# Team Content",
+      readPermission: "owner",
+      writePermission: "owner",
+    });
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain("Team note created");
+    expect(result.output).toContain("engineering");
+  });
+});
+
+describe("UpdateNoteTool", () => {
+  let tool: UpdateNoteTool;
+  let mockClient: ReturnType<typeof createMockHackMDClient>;
+  let mockApproval: ReturnType<typeof createMockApprovalManager>;
+
+  beforeEach(() => {
+    mockClient = createMockHackMDClient();
+    mockApproval = createMockApprovalManager(true);
+    tool = new UpdateNoteTool(mockClient as any, mockApproval as any);
+  });
+
+  it("should update personal note successfully when approved", async () => {
+    mockClient.updateNote.mockResolvedValue(undefined);
+
+    const result = await tool.call({
+      noteId: "note123",
+      content: "# Updated Content",
+    });
+
+    expect(mockApproval.request).toHaveBeenCalledWith(
+      "update_note",
+      "update_note",
+      expect.stringContaining("note123"),
+    );
+    expect(mockClient.updateNote).toHaveBeenCalledWith("note123", {
+      content: "# Updated Content",
+    });
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain("note123");
+  });
+
+  it("should update team note successfully with teamPath", async () => {
+    mockClient.updateTeamNote.mockResolvedValue(undefined);
+
+    const result = await tool.call({
+      noteId: "team-note-456",
+      content: "# Updated Team Content",
+      teamPath: "my-team",
+    });
+
+    expect(mockApproval.request).toHaveBeenCalledWith(
+      "update_note",
+      "update_team_note",
+      expect.stringContaining("my-team"),
+    );
+    expect(mockClient.updateTeamNote).toHaveBeenCalledWith(
+      "my-team",
+      "team-note-456",
+      { content: "# Updated Team Content" },
+    );
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain("Team note updated");
+    expect(result.output).toContain("my-team");
+  });
+
+  it("should reject when user denies approval", async () => {
+    mockApproval.request.mockResolvedValue(false);
+
+    const result = await tool.call({
+      noteId: "note123",
+      content: "# Content",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("rejected");
+    expect(mockClient.updateNote).not.toHaveBeenCalled();
+  });
+
+  it("should handle update errors with 404", async () => {
+    mockClient.updateNote.mockRejectedValue(
+      new Error("Request failed with status code 404"),
+    );
+
+    const result = await tool.call({
+      noteId: "non-existent",
+      content: "# Content",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("Note not found");
+  });
+});
+
+describe("DeleteNoteTool", () => {
+  let tool: DeleteNoteTool;
+  let mockClient: ReturnType<typeof createMockHackMDClient>;
+  let mockApproval: ReturnType<typeof createMockApprovalManager>;
+
+  beforeEach(() => {
+    mockClient = createMockHackMDClient();
+    mockApproval = createMockApprovalManager(true);
+    tool = new DeleteNoteTool(mockClient as any, mockApproval as any);
+  });
+
+  it("should delete personal note successfully when approved", async () => {
+    mockClient.deleteNote.mockResolvedValue(undefined);
+
+    const result = await tool.call({
+      noteId: "note-to-delete",
+    });
+
+    expect(mockApproval.request).toHaveBeenCalledWith(
+      "delete_note",
+      "delete_note",
+      expect.stringContaining("note-to-delete"),
+    );
+    expect(mockClient.deleteNote).toHaveBeenCalledWith("note-to-delete");
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain("deleted successfully");
+  });
+
+  it("should delete team note successfully with teamPath", async () => {
+    mockClient.deleteTeamNote.mockResolvedValue(undefined);
+
+    const result = await tool.call({
+      noteId: "team-note-789",
+      teamPath: "work-team",
+    });
+
+    expect(mockApproval.request).toHaveBeenCalledWith(
+      "delete_note",
+      "delete_team_note",
+      expect.stringContaining("work-team"),
+    );
+    expect(mockClient.deleteTeamNote).toHaveBeenCalledWith(
+      "work-team",
+      "team-note-789",
+    );
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain("Team note deleted");
+    expect(result.output).toContain("work-team");
+  });
+
+  it("should reject when user denies approval", async () => {
+    mockApproval.request.mockResolvedValue(false);
+
+    const result = await tool.call({
+      noteId: "note123",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("cancelled");
+    expect(mockClient.deleteNote).not.toHaveBeenCalled();
+  });
+
+  it("should handle deletion errors with 403", async () => {
+    mockClient.deleteNote.mockRejectedValue(
+      new Error("Request failed with status code 403"),
+    );
+
+    const result = await tool.call({
+      noteId: "protected-note",
     });
 
     expect(result.ok).toBe(false);
