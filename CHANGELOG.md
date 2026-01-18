@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.4](https://github.com/EastSun566/hackwriter/compare/v0.0.3...v0.0.4) (2026-01-18)
+
+
+### Features
+
+* support ollama provider ([6e1121b](https://github.com/EastSun566/hackwriter/commit/6e1121b5f969d82be4a994361475725778e4c6b1))
+
 ### [0.0.3](https://github.com/EastSun566/hackwriter/compare/v0.0.2...v0.0.3) (2026-01-16)
 
 
