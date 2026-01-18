@@ -166,23 +166,34 @@ export class ConversationContext {
     try {
       const content = await fs.readFile(this.storageFile, 'utf-8');
       const lines = content.split('\n').filter(l => l.trim());
+      let corruptedLines = 0;
 
       for (const line of lines) {
-        const record: ContextRecord = JSON.parse(line);
-        
-        if (record.type === 'usage') {
-          this._tokenCount = record.tokenCount;
-        } else if (record.type === 'checkpoint') {
-          this.checkpointCounter = record.id + 1;
-        } else if (record.type === 'message') {
-          const normalized = coerceLegacyMessage(record.data);
-          if (normalized) {
-            this.messages.push(normalized);
+        try {
+          const record: ContextRecord = JSON.parse(line);
+          
+          if (record.type === 'usage') {
+            this._tokenCount = record.tokenCount;
+          } else if (record.type === 'checkpoint') {
+            this.checkpointCounter = record.id + 1;
+          } else if (record.type === 'message') {
+            const normalized = coerceLegacyMessage(record.data);
+            if (normalized) {
+              this.messages.push(normalized);
+            }
           }
+        } catch (e) {
+          corruptedLines++;
+          Logger.warn('ConversationContext', 'Skipping corrupted history line', { 
+            line: line.slice(0, 100),
+            error: e instanceof Error ? e.message : String(e)
+          });
+          continue;
         }
       }
 
-      Logger.debug('ConversationContext', `Loaded ${this.messages.length} messages, ${this._tokenCount} tokens`);
+      Logger.debug('ConversationContext', `Loaded ${this.messages.length} messages, ${this._tokenCount} tokens`, 
+        corruptedLines > 0 ? { corruptedLines } : undefined);
       return true;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -209,8 +220,8 @@ export class ConversationContext {
     }
   }
 
-  async updateTokenCount(count: number): Promise<void> {
-    this._tokenCount += count;
+  async setTokenCount(count: number): Promise<void> {
+    this._tokenCount = count;
     await this.persistRecord({ type: 'usage', tokenCount: this._tokenCount });
   }
 

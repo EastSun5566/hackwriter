@@ -127,15 +127,15 @@ describe('ConversationContext', () => {
     it('should track token count', async () => {
       expect(context.tokenCount).toBe(0);
 
-      await context.updateTokenCount(100);
+      await context.setTokenCount(100);
       expect(context.tokenCount).toBe(100);
 
-      await context.updateTokenCount(50);
+      await context.setTokenCount(150);
       expect(context.tokenCount).toBe(150);
     });
 
     it('should persist token count to disk', async () => {
-      await context.updateTokenCount(500);
+      await context.setTokenCount(500);
 
       const fileContent = await fs.readFile(tempFile, 'utf-8');
       expect(fileContent).toContain('"type":"usage"');
@@ -178,8 +178,12 @@ describe('ConversationContext', () => {
       );
 
       const newContext = new ConversationContext(tempFile);
+      const loaded = await newContext.loadFromDisk();
       
-      await expect(newContext.loadFromDisk()).rejects.toThrow();
+      // Should succeed and skip the corrupted line
+      expect(loaded).toBe(true);
+      expect(newContext.getHistory()).toHaveLength(1);
+      expect(newContext.getHistory()[0].content).toBe('Valid');
     });
 
     it('should preserve order when loading', async () => {
@@ -219,10 +223,10 @@ describe('ConversationContext', () => {
     });
 
     it('should handle large token counts', async () => {
-      await context.updateTokenCount(1000000);
+      await context.setTokenCount(1000000);
       expect(context.tokenCount).toBe(1000000);
 
-      await context.updateTokenCount(999999);
+      await context.setTokenCount(1999999);
       expect(context.tokenCount).toBe(1999999);
     });
   });

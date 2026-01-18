@@ -4,7 +4,7 @@ import type { ApprovalManager } from "../../agent/ApprovalManager.js";
 import { handleHackMDError } from "./errorHandler.js";
 
 // Re-define enum as the package doesn't export it properly
-enum NotePermissionRole {
+export enum NotePermissionRole {
   OWNER = "owner",
   SIGNED_IN = "signed_in",
   GUEST = "guest",

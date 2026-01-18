@@ -57,7 +57,6 @@ program
     }
   });
 
-// Setup command
 program
   .command("setup")
   .description("Configure HackWriter for first-time use")
@@ -70,20 +69,17 @@ async function runAgent(options: {
   debug?: boolean;
   model?: string;
 }): Promise<void> {
-  // Enable debug logging if --debug flag is set
   if (options.debug) {
     Logger.setLevel("debug");
     Logger.info("CLI", "Debug mode enabled");
   }
 
-  // Load configuration
   const config = await ConfigurationLoader.load();
   Logger.debug(
     "CLI",
     `Config loaded: ${config.defaultModel || "no default"}, ${Object.keys(config.models).length} model(s)`,
   );
 
-  // Check if configuration is needed
   const needsSetup =
     !config.services.hackmd?.apiToken ||
     (!config.defaultModel && !options.model);
@@ -92,22 +88,18 @@ async function runAgent(options: {
     console.log(
       chalk.yellow("⚙️  Configuration needed. Starting setup wizard...\n"),
     );
-    await setupCommand(true); // Pass true to indicate auto-triggered
+    await setupCommand(true);
 
-    // Reload configuration after setup
     const newConfig = await ConfigurationLoader.load();
 
-    // Verify setup was completed
     if (!newConfig.services.hackmd?.apiToken || !newConfig.defaultModel) {
       console.log(chalk.gray("\nSetup cancelled or incomplete."));
       process.exit(0);
     }
 
-    // Use the new config
     Object.assign(config, newConfig);
   }
 
-  // Create or continue session
   const workDir = process.cwd();
   const session = options.continue
     ? ((await SessionManager.continue(workDir)) ??
@@ -115,7 +107,6 @@ async function runAgent(options: {
     : await SessionManager.create(workDir);
   Logger.debug("CLI", `Session: ${session.id.slice(0, 8)}...`);
 
-  // Initialize LLM
   const modelName = options.model ?? config.defaultModel;
   const modelConfig = config.models[modelName];
   Logger.debug("CLI", `Model: ${modelConfig.provider}/${modelConfig.model}`);
@@ -127,16 +118,13 @@ async function runAgent(options: {
   }
   const languageModel = buildLanguageModel(providerConfig, modelConfig.model);
 
-  // Initialize HackMD API
   if (!config.services.hackmd) {
     throw new Error("HackMD service configuration is missing");
   }
   const hackmdClient = new API(config.services.hackmd.apiToken);
 
-  // Create approval manager
-  const approvalManager = new ApprovalManager(options.yolo ?? false);
+  const approvalManager = new ApprovalManager(undefined, options.yolo ?? false);
 
-  // Register tools
   const toolRegistry = new ToolRegistry();
 
   // Note tools (now support both personal and team notes via optional teamPath)

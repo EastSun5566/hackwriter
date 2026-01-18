@@ -54,7 +54,7 @@ export class ListNotesTool extends Tool<ListNotesParams> {
 
       const noteType = isTeamNotes ? "team notes" : "notes";
       return this.ok(
-        output || `No ${noteType} found.`,
+        output !== "" ? output : `No ${noteType} found.`,
         `Found ${notes.length} ${noteType} (showing ${limitedNotes.length})`,
         `${notes.length} ${noteType}`,
       );

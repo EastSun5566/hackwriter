@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { NotePermissionRole } from "@hackmd/api/dist/type.js";
+import { NotePermissionRole } from "../../../src/tools/hackmd/CreateNoteTool.ts";
 
 import { ListNotesTool } from "../../../src/tools/hackmd/ListNotesTool.ts";
 import { ReadNoteTool } from "../../../src/tools/hackmd/ReadNoteTool.ts";

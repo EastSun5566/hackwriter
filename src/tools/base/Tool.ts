@@ -1,17 +1,20 @@
-import type { JSONSchema7 } from 'json-schema';
+import type { JSONSchema7 } from "json-schema";
 
 export type ToolParams = Record<string, unknown>;
 
 export interface ToolResult {
   ok: boolean;
-  output: string;
+  output: string; // Human-readable text output
   message?: string;
   brief?: string;
+  json?: unknown; // Optional structured data for model/UI
 }
 
 export type ToolSchema = JSONSchema7;
 
-export abstract class Tool<P extends Record<string, unknown> = Record<string, unknown>> {
+export abstract class Tool<
+  P extends Record<string, unknown> = Record<string, unknown>,
+> {
   abstract readonly name: string;
   abstract readonly description: string;
   abstract readonly inputSchema: ToolSchema;
