@@ -3,11 +3,11 @@ export interface HackMDConfig {
   apiToken: string;
 }
 
-export type LLMProviderType = 'anthropic' | 'openai';
+export type LLMProviderType = "anthropic" | "openai" | "ollama";
 
 export interface LLMProvider {
   type: LLMProviderType;
-  apiKey: string;
+  apiKey?: string;
   baseUrl?: string;
   organizationId?: string;
   projectId?: string;

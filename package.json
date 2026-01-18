@@ -38,13 +38,14 @@
     "url": "https://github.com/EastSun566/hackwriter"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.47",
-    "@ai-sdk/openai": "^2.0.72",
+    "@ai-sdk/anthropic": "^3.0.15",
+    "@ai-sdk/openai": "^3.0.12",
     "@hackmd/api": "^2.5.0",
     "@inquirer/prompts": "^8.0.1",
-    "ai": "^5.0.101",
+    "ai": "^6.0.39",
     "chalk": "^5.6.2",
     "commander": "^14.0.2",
+    "ollama-ai-provider-v2": "^3.0.1",
     "ora": "^9.0.0",
     "uuid": "^13.0.0",
     "zod": "^4.1.13"

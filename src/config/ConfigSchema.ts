@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * Zod schemas for runtime configuration validation
@@ -6,21 +6,24 @@ import { z } from 'zod';
 
 export const HackMDConfigSchema = z.object({
   baseUrl: z.string().url(),
-  apiToken: z.string().min(1, 'API token is required'),
+  apiToken: z.string().min(1, "API token is required"),
 });
 
 export const LLMProviderSchema = z.object({
-  type: z.enum(['anthropic', 'openai']),
-  apiKey: z.string().min(1, 'API key is required'),
+  type: z.enum(["anthropic", "openai", "ollama"]),
+  apiKey: z.string().min(1, "API key is required").optional(),
   baseUrl: z.string().url().optional(),
   organizationId: z.string().optional(),
   projectId: z.string().optional(),
 });
 
 export const LLMModelSchema = z.object({
-  provider: z.string().min(1, 'Provider name is required'),
-  model: z.string().min(1, 'Model name is required'),
-  maxContextSize: z.number().int().positive('Max context size must be positive'),
+  provider: z.string().min(1, "Provider name is required"),
+  model: z.string().min(1, "Model name is required"),
+  maxContextSize: z
+    .number()
+    .int()
+    .positive("Max context size must be positive"),
 });
 
 export const LoopControlSchema = z.object({
@@ -60,15 +63,15 @@ export function safeValidateConfiguration(data: unknown): {
   errors?: { path: string; message: string }[];
 } {
   const result = ConfigurationSchema.safeParse(data);
-  
+
   if (result.success) {
     return { success: true, data: result.data };
   }
-  
-  const errors = result.error.issues.map(issue => ({
-    path: issue.path.join('.'),
+
+  const errors = result.error.issues.map((issue) => ({
+    path: issue.path.join("."),
     message: issue.message,
   }));
-  
+
   return { success: false, errors };
 }
