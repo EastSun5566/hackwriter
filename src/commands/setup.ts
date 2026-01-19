@@ -1,165 +1,91 @@
-import { input, password, select } from "@inquirer/prompts";
-import chalk from "chalk";
-import { ConfigurationLoader } from "../config/ConfigurationLoader.js";
-import type {
-  Configuration,
-  LLMProviderType,
-} from "../config/Configuration.js";
+import { password } from '@inquirer/prompts';
+import chalk from 'chalk';
+import { ConfigurationLoader } from '../config/ConfigurationLoader.js';
+import type { Configuration } from '../config/Configuration.js';
+import { discoverProviders, discoverModels } from '../config/ProviderDiscovery.js';
 
 export async function setupCommand(isAutoTriggered = false): Promise<void> {
-  console.log(chalk.bold.cyan("\n🔧 HackWriter Setup\n"));
+  console.log(chalk.bold.cyan('\n🔧 HackWriter Setup\n'));
 
-  const providerType = await select<LLMProviderType>({
-    message: "Select your primary LLM provider",
-    choices: [
-      { name: "Anthropic (Claude)", value: "anthropic" },
-      { name: "OpenAI (GPT-4/5)", value: "openai" },
-      { name: "Ollama (Local LLM)", value: "ollama" },
-    ],
-    default: "anthropic",
-  });
+  // 1. Show what's already discovered
+  const providers = discoverProviders();
+  const models = await discoverModels(providers);
 
-  const providerName = await input({
-    message: "Name this provider configuration",
-    default: `${providerType}-default`,
-  });
-
-  const providerLabel =
-    providerType === "anthropic"
-      ? "Anthropic (Claude)"
-      : providerType === "openai"
-        ? "OpenAI"
-        : "Ollama";
-
-  let llmApiKey: string | undefined;
-  if (providerType !== "ollama") {
-    llmApiKey = await password({
-      message: `Enter ${providerLabel} API key`,
-      mask: "*",
-    });
-
-    if (!llmApiKey) {
-      console.log(chalk.red("\n❌ API key is required"));
-      process.exit(1);
+  if (Object.keys(providers).length > 0) {
+    console.log(chalk.green('Environment Detection:'));
+    for (const [name, provider] of Object.entries(providers)) {
+      if (provider.apiKey) {
+        console.log(chalk.green(`  ✓ ${name.toUpperCase()}_API_KEY found`));
+      } else if (name === 'ollama') {
+        console.log(chalk.green('  ✓ Ollama detected'));
+      }
     }
+
+    const modelCount = Object.keys(models).length;
+    if (modelCount > 0) {
+      console.log(chalk.green(`  ✓ ${modelCount} model(s) available\n`));
+    }
+  } else {
+    console.log(chalk.yellow('No providers detected in environment'));
+    console.log(chalk.gray('\nTo get started, set one of these environment variables:\n'));
+    console.log(chalk.cyan('  export ANTHROPIC_API_KEY=sk-ant-...'));
+    console.log(chalk.cyan('  export OPENAI_API_KEY=sk-...'));
+    console.log(chalk.gray('\nOr install Ollama locally:'));
+    console.log(chalk.cyan('  https://ollama.ai\n'));
   }
 
-  // Model
-  const modelDefault =
-    providerType === "anthropic"
-      ? "claude-3-5-haiku-latest"
-      : providerType === "openai"
-        ? "gpt-4.1-mini"
-        : "phi3";
-
-  const model = await input({
-    message: "Enter model name",
-    default: modelDefault,
-  });
-
-  // Max context size
-  const contextDefault =
-    providerType === "anthropic"
-      ? 200000
-      : providerType === "openai"
-        ? 128000
-        : 128000;
-  const maxContextSizeStr = await input({
-    message: "Maximum context size (tokens)",
-    default: String(contextDefault),
-  });
-  const parsedContextSize = Number.parseInt(maxContextSizeStr, 10);
-  const maxContextSize = Number.isFinite(parsedContextSize)
-    ? parsedContextSize
-    : contextDefault;
-
-  const baseUrlDefault =
-    providerType === "ollama" ? "http://localhost:11434/api" : "";
-  const baseUrl = await input({
-    message:
-      providerType === "ollama"
-        ? "Ollama API URL"
-        : "Custom base URL (optional)",
-    default: baseUrlDefault,
-  });
-
-  let organizationId: string | undefined;
-  let projectId: string | undefined;
-
-  if (providerType === "openai") {
-    organizationId =
-      (
-        await input({
-          message: "OpenAI organization ID (optional)",
-          default: "",
-        })
-      ).trim() || undefined;
-
-    projectId =
-      (
-        await input({
-          message: "OpenAI project ID (optional)",
-          default: "",
-        })
-      ).trim() || undefined;
-  }
-
-  // HackMD Token
-  const hackmdToken = await password({
-    message: "Enter HackMD API token",
-    mask: "*",
-  });
+  // 2. HackMD token (only if not in env)
+  let hackmdToken = process.env.HACKMD_API_TOKEN;
 
   if (!hackmdToken) {
-    console.log(chalk.red("\n❌ HackMD token is required"));
+    console.log(chalk.yellow('Configuration needed:\n'));
+    hackmdToken = await password({
+      message: 'Enter HackMD API token',
+      mask: '*',
+    });
+
+    if (!hackmdToken) {
+      console.log(chalk.red('\n❌ HackMD token is required'));
+      process.exit(1);
+    }
+  } else {
+    console.log(chalk.green('Configuration:'));
+    console.log(chalk.green('  ✓ HACKMD_API_TOKEN found\n'));
+  }
+
+  // 3. Check if we have any models available
+  if (Object.keys(models).length === 0) {
+    console.log(chalk.red('\n❌ No LLM providers available!\n'));
+    console.log(chalk.yellow('Please set one of these environment variables:\n'));
+    console.log(chalk.cyan('  export ANTHROPIC_API_KEY=sk-ant-...'));
+    console.log(chalk.cyan('  export OPENAI_API_KEY=sk-...'));
+    console.log(chalk.gray('\nOr install and run Ollama:'));
+    console.log(chalk.cyan('  https://ollama.ai\n'));
     process.exit(1);
   }
 
-  const answers = {
-    provider: providerName,
-    llmApiKey,
-    model,
-    maxContextSize,
-    hackmdToken,
-  };
-
-  const config: Configuration = {
-    defaultModel: "default",
-    models: {
-      default: {
-        provider: answers.provider,
-        model: answers.model,
-        maxContextSize: answers.maxContextSize,
+  // 4. Save (only if needed)
+  if (!process.env.HACKMD_API_TOKEN) {
+    const config: Partial<Configuration> = {
+      services: {
+        hackmd: {
+          baseUrl: 'https://api.hackmd.io/v1',
+          apiToken: hackmdToken,
+        },
       },
-    },
-    providers: {
-      [answers.provider]: {
-        type: providerType,
-        apiKey: answers.llmApiKey,
-        baseUrl: baseUrl.trim() || undefined,
-        organizationId,
-        projectId,
+      loopControl: {
+        maxStepsPerRun: 100,
+        maxRetriesPerStep: 3,
       },
-    },
-    services: {
-      hackmd: {
-        baseUrl: "https://api.hackmd.io/v1",
-        apiToken: answers.hackmdToken,
-      },
-    },
-    loopControl: {
-      maxStepsPerRun: 100,
-      maxRetriesPerStep: 3,
-    },
-  };
+    };
 
-  await ConfigurationLoader.save(config);
-
-  console.log(chalk.green("\n✅ Configuration saved!"));
+    await ConfigurationLoader.save(config as Configuration);
+    console.log(chalk.green('✅ Configuration saved!\n'));
+  } else {
+    console.log(chalk.green('✅ All set! (using environment variables)\n'));
+  }
 
   if (isAutoTriggered) {
-    console.log(chalk.cyan("\n🚀 Starting HackMD Agent...\n"));
-  } else {
-    console.log(chalk.gray("\nYou can now run: hackmd-agent\n"));
+    console.log(chalk.cyan('🚀 Starting HackMD Agent...\n'));
   }
 }
