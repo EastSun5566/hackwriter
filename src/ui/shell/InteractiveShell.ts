@@ -1,10 +1,21 @@
-import * as readline from 'readline';
-import chalk from 'chalk';
-import type { AgentExecutor } from '../../agent/AgentExecutor.js';
-import { OutputRenderer } from './OutputRenderer.js';
-import { CommandRegistry } from './CommandRegistry.js';
-import { MessageBus } from '../../messaging/MessageBus.js';
-import { Logger } from '../../utils/Logger.js';
+import * as readline from "readline";
+import chalk from "chalk";
+import type { AgentExecutor } from "../../agent/AgentExecutor.js";
+import type { Configuration } from "../../config/Configuration.js";
+import type { ConversationContext } from "../../agent/ConversationContext.js";
+import type { ToolRegistry } from "../../tools/base/ToolRegistry.js";
+import { OutputRenderer } from "./OutputRenderer.js";
+import { CommandRegistry } from "./CommandRegistry.js";
+import { MessageBus } from "../../messaging/MessageBus.js";
+import { Logger } from "../../utils/Logger.js";
+
+export interface ModelContext {
+  currentModelName: string;
+  config: Configuration;
+  context: ConversationContext;
+  toolRegistry: ToolRegistry;
+  systemPrompt: string;
+}
 
 export class InteractiveShell {
   private executor: AgentExecutor;
@@ -12,12 +23,14 @@ export class InteractiveShell {
   private commandRegistry: CommandRegistry;
   private rl: readline.Interface;
   private isClosed = false;
+  private modelContext: ModelContext;
 
-  constructor(executor: AgentExecutor) {
+  constructor(executor: AgentExecutor, modelContext: ModelContext) {
     this.executor = executor;
+    this.modelContext = modelContext;
     this.renderer = new OutputRenderer();
-    this.commandRegistry = new CommandRegistry(executor);
-    
+    this.commandRegistry = new CommandRegistry(this);
+
     this.rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
@@ -36,13 +49,13 @@ export class InteractiveShell {
 
     // Always enter interactive mode (unless explicitly exited)
     return new Promise((resolve) => {
-      this.rl.on('line', (input) => {
+      this.rl.on("line", (input) => {
         void this.handleInput(input.trim())
           .then(() => {
             // Input handled successfully
           })
           .catch((error) => {
-            Logger.error('Shell', 'handleInput error', error);
+            Logger.error("Shell", "handleInput error", error);
           })
           .finally(() => {
             if (this.isClosed) {
@@ -53,12 +66,12 @@ export class InteractiveShell {
           });
       });
 
-      this.rl.on('close', () => {
+      this.rl.on("close", () => {
         this.isClosed = true;
-        console.log(chalk.gray('\nGoodbye! 👋'));
+        console.log(chalk.gray("\nGoodbye! 👋"));
         resolve();
       });
-      
+
       this.rl.prompt();
     });
   }
@@ -66,14 +79,8 @@ export class InteractiveShell {
   private async handleInput(input: string): Promise<void> {
     if (!input) return;
 
-    if (input === 'exit' || input === 'quit') {
-      this.isClosed = true;
-      this.rl.close();
-      return;
-    }
-
     // Handle commands
-    if (input.startsWith('/')) {
+    if (input.startsWith("/")) {
       await this.commandRegistry.execute(input.slice(1));
       return;
     }
@@ -83,8 +90,8 @@ export class InteractiveShell {
       await this.executor.execute(input);
     } catch (error) {
       console.log(
-        chalk.red('Error: '),
-        error instanceof Error ? error.message : String(error)
+        chalk.red("Error: "),
+        error instanceof Error ? error.message : String(error),
       );
     }
   }
@@ -97,17 +104,49 @@ export class InteractiveShell {
   private getPrompt(): string {
     const status = this.executor.status;
     const contextPercent = (status.contextUsage * 100).toFixed(0);
-    
+    const modelName = this.getShortModelName();
+
     return chalk.bold(
-      `${process.env.USER ?? 'user'}` +
-      chalk.gray(` [${contextPercent}%]`) +
-      ' > '
+      `${process.env.USER ?? "user"}` +
+        chalk.gray(`@${modelName}`) +
+        chalk.gray(` [${contextPercent}%]`) +
+        " > ",
     );
   }
 
+  private getShortModelName(): string {
+    const { currentModelName, config } = this.modelContext;
+    const modelConfig = config.models[currentModelName];
+
+    if (!modelConfig) {
+      return currentModelName;
+    }
+
+    // Return the actual model name (e.g., "phi3", "claude-3-5-haiku-latest")
+    return modelConfig.model;
+  }
+
+  getModelContext(): ModelContext {
+    return this.modelContext;
+  }
+
+  getExecutor(): AgentExecutor {
+    return this.executor;
+  }
+
+  setExecutor(executor: AgentExecutor): void {
+    this.executor = executor;
+    this.commandRegistry = new CommandRegistry(this);
+  }
+
+  exit(): void {
+    this.isClosed = true;
+    this.rl.close();
+  }
+
   private printWelcome(): void {
-    console.log(chalk.bold.cyan('\n📝 HackWriter\n'));
-    console.log(chalk.gray('Writing agent for HackMD'));
-    console.log(chalk.gray('Type /help for available commands\n'));
+    console.log(chalk.bold.cyan("\n📝 HackWriter\n"));
+    console.log(chalk.gray("Writing agent for HackMD"));
+    console.log(chalk.gray("Type /help for commands or /exit to quit\n"));
   }
 }

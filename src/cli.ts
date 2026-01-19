@@ -166,8 +166,13 @@ async function runAgent(options: {
     config.loopControl,
   );
 
-  // Start interactive shell
-  const shell = new InteractiveShell(executor);
+  const shell = new InteractiveShell(executor, {
+    currentModelName: options.model ?? config.defaultModel,
+    config,
+    context,
+    toolRegistry,
+    systemPrompt: agent.systemPrompt,
+  });
   await shell.start(options.command);
 }
 
