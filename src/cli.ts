@@ -80,9 +80,15 @@ async function runAgent(options: {
     `Config loaded: ${config.defaultModel || "no default"}, ${Object.keys(config.models).length} model(s)`,
   );
 
+
+  // Check if we have discovered providers from environment
+  const hasDiscoveredProviders = Object.keys(config.providers).some(
+    (name) => config.providers[name].apiKey
+  );
+
   const needsSetup =
     !config.services.hackmd?.apiToken ||
-    (!config.defaultModel && !options.model);
+    (!config.defaultModel && !options.model && !hasDiscoveredProviders);
 
   if (needsSetup) {
     console.log(

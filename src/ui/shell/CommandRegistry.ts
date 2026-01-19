@@ -128,19 +128,40 @@ export class CommandRegistry {
   private listModels(): void {
     const { config, currentModelName } = this.shell.getModelContext();
 
-    console.log(chalk.bold("\n🤖 Available Models:\n"));
+    console.log(chalk.bold('\n🤖 Available Models:\n'));
+
+    // Group models by provider
+    const byProvider = new Map<string, { name: string; model: string; isCurrent: boolean }[]>();
 
     for (const [name, modelConfig] of Object.entries(config.models)) {
-      const isCurrent = name === currentModelName;
-      const marker = isCurrent ? chalk.green("●") : " ";
-      const provider = config.providers[modelConfig.provider];
+      const provider = modelConfig.provider;
+      if (!byProvider.has(provider)) {
+        byProvider.set(provider, []);
+      }
 
-      console.log(
-        `  ${marker} ${chalk.cyan(name)} ` +
-          chalk.gray(`(${provider.type}/${modelConfig.model})`),
-      );
+      byProvider.get(provider)!.push({
+        name,
+        model: modelConfig.model,
+        isCurrent: name === currentModelName,
+      });
     }
-    console.log();
+
+    // Display grouped by provider
+    for (const [providerName, models] of byProvider) {
+      const provider = config.providers[providerName];
+      if (!provider) continue;
+
+      // Provider header
+      console.log(chalk.bold(`${provider.type}:`));
+
+      // Models under this provider
+      for (const { name, model, isCurrent } of models) {
+        const marker = isCurrent ? chalk.green('●') : ' ';
+        console.log(`  ${marker} ${chalk.cyan(name)} ${chalk.gray(`(${model})`)}`);
+      }
+
+      console.log(); // Blank line between providers
+    }
   }
 
   private switchModel(modelName: string): void {

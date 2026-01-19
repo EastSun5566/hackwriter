@@ -4,6 +4,7 @@ import type { AgentExecutor } from "../../agent/AgentExecutor.js";
 import type { Configuration } from "../../config/Configuration.js";
 import type { ConversationContext } from "../../agent/ConversationContext.js";
 import type { ToolRegistry } from "../../tools/base/ToolRegistry.js";
+import { getShortModelName as getShortName } from "../../config/ProviderDiscovery.js";
 import { OutputRenderer } from "./OutputRenderer.js";
 import { CommandRegistry } from "./CommandRegistry.js";
 import { MessageBus } from "../../messaging/MessageBus.js";
@@ -122,8 +123,8 @@ export class InteractiveShell {
       return currentModelName;
     }
 
-    // Return the actual model name (e.g., "phi3", "claude-3-5-haiku-latest")
-    return modelConfig.model;
+    // Use ProviderDiscovery helper for consistent naming
+    return getShortName(modelConfig.model);
   }
 
   getModelContext(): ModelContext {
