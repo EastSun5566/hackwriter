@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.5](https://github.com/EastSun566/hackwriter/compare/v0.0.4...v0.0.5) (2026-01-19)
+
+
+### Features
+
+* enable model switching ([1af5b79](https://github.com/EastSun566/hackwriter/commit/1af5b794cbf5ad9d1d71abd00623eefaad1baa5b))
+
 ### [0.0.4](https://github.com/EastSun566/hackwriter/compare/v0.0.3...v0.0.4) (2026-01-18)
 
 
