@@ -73,7 +73,7 @@ export class ConfigurationLoader {
         },
       };
 
-      // 5. Validate merged configuration
+      // 6. Validate merged configuration
       const validation = safeValidateConfiguration(config);
 
       if (!validation.success) {
@@ -134,18 +134,5 @@ export class ConfigurationLoader {
       }
       throw ErrorFactory.fromUnknown(error, 'Failed to save configuration');
     }
-  }
-
-  private static getDefaultConfig(): Configuration {
-    return {
-      defaultModel: '',
-      models: {},
-      providers: {},
-      services: {},
-      loopControl: {
-        maxStepsPerRun: 100,
-        maxRetriesPerStep: 3,
-      },
-    };
   }
 }

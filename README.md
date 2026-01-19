@@ -1,55 +1,176 @@
 # HackWriter
 
-Writing agent for HackMD
+**Writing Agent for HackMD** - Zero-config, multi-provider LLM support
 
-## Install
+## Quick Start
 
-```sh
+```bash
 npx hackwriter
 ```
 
-Or install globally:
+If you don't have API keys configured, the setup wizard will guide you through it.
 
-```sh
-npm i -g hackwriter
+**That's it!** No config files needed.
+
+---
+
+## Installation
+
+**One-time use**:
+```bash
+npx hackwriter
 ```
 
-## Configure
+**Global install**:
+```bash
+npm i -g hackwriter
 
-First run will prompt for setup:
-
-```sh
 hackwriter
 ```
 
-You'll need:
-
-- HackMD API token
-- LLM provider API key (OpenAI or Anthropic)
-
-## Usage
-
-```sh
-hackwriter                      # interactive shell
-hackwriter -c "list notes"      # single command
-hackwriter --continue           # resume session
-hackwriter --yolo               # auto-approve all
-hackwriter --debug              # detailed logs
-```
-
-Inside shell: `/help`, `/status`, `/clear`, `exit`
+---
 
 ## Features
 
-- Lists, reads, creates, updates, deletes HackMD notes (personal & team)
-- Streams agent thoughts with tool-call status
-- Persists sessions in `~/.hackwriter/sessions`
-- Asks confirmation before destructive actions (unless `--yolo`)
+✅ **Zero-Config** - detected existing environment variables
+✅ **Multi-Provider** - Anthropic, OpenAI, Ollama (auto-detected)
+✅ **Model Switching** - Switch models on-the-fly with `/model`
+✅ **Session Persistence** - Resume your work anytime
+✅ **Smart Approvals** - Confirms destructive actions
 
-## Development
+**HackMD Operations**:
+- List, read, create, update, delete notes
+- Personal & team notes support
+- Search and export notes
 
-```sh
-pnpm install
-pnpm run dev
-pnpm run test
+---
+
+## Configuration
+
+### Automatic Setup
+
+Run `hackwriter` and follow the setup wizard. It will ask for:
+- LLM provider (Anthropic, OpenAI, or Ollama) API key (if needed)
+- HackMD API token
+
+### Manual Setup (Optional)
+
+**Environment Variables** - Skip setup wizard by setting these:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-xxx  # or OPENAI_API_KEY
+export HACKMD_API_TOKEN=your-token
+hackwriter  # Starts immediately!
+```
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Anthropic API key (optional) |
+| `OPENAI_API_KEY` | OpenAI API key (optional) |
+| `HACKMD_API_TOKEN` | HackMD API token (required) |
+
+**Config File** - Override defaults with `~/.hackwriter/config.json`:
+
+```json
+{
+  "defaultModel": "anthropic-claude-3-5-sonnet-latest",
+  "models": {
+    "fast": {
+      "provider": "anthropic",
+      "model": "claude-3-5-haiku-latest",
+      "maxContextSize": 200000
+    }
+  }
+}
+```
+
+---
+
+## Usage
+
+### Interactive Shell
+
+```bash
+hackwriter                    # Start interactive mode
+hackwriter --continue         # Resume last session
+hackwriter --debug            # Enable debug logging
+hackwriter -m gpt-4o          # Use specific model
+```
+
+### Shell Commands
+
+```bash
+/help                         # Show available commands
+/model                        # List/switch models
+/model openai-gpt-4o          # Switch to GPT-4o
+/status                       # Show current status
+/exit                         # Exit (or /quit, /q)
+```
+
+### Single Command
+
+```bash
+hackwriter -c "list my notes"
+hackwriter -c "create a note titled 'Meeting Notes'"
+```
+
+### Auto-Approve Mode
+
+```bash
+hackwriter --yolo             # Skip all confirmations
+```
+
+---
+
+## Supported Providers
+
+### Anthropic
+```bash
+export ANTHROPIC_API_KEY=sk-ant-xxx
+```
+Models: Claude 3.5 Haiku, Sonnet, Opus 4
+
+### OpenAI
+```bash
+export OPENAI_API_KEY=sk-xxx
+```
+Models: GPT-4o, GPT-4o-mini, o1
+
+### Ollama (Local)
+```bash
+# Ollama auto-detected if running
+ollama serve
+```
+All local models automatically discovered
+
+---
+
+## Advanced
+
+### Custom Ollama Models
+
+```json
+{
+  "models": {
+    "llama": {
+      "provider": "ollama",
+      "model": "llama3.1:70b",
+      "maxContextSize": 128000
+    }
+  },
+  "providers": {
+    "ollama": {
+      "type": "ollama",
+      "baseUrl": "http://localhost:11434/api"
+    }
+  }
+}
+```
+
+### Model Management
+
+```bash
+/model                        # Show all available models
+/model anthropic-*            # List Anthropic models
+/model ollama-llama3.1        # Switch to specific model
 ```
