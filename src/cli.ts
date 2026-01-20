@@ -31,6 +31,12 @@ import {
   ExportNoteTool,
 } from "./tools/hackmd/index.js";
 
+import {
+  ReadFileTool,
+  WriteFileTool,
+  ListFilesTool,
+} from "./tools/file/index.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const packageJson = JSON.parse(
@@ -148,6 +154,11 @@ async function runAgent(options: {
   toolRegistry.register(new SearchNotesTool(hackmdClient));
   toolRegistry.register(new ExportNoteTool(hackmdClient));
 
+  // File tools (for local file operations)
+  toolRegistry.register(new ReadFileTool());
+  toolRegistry.register(new WriteFileTool(approvalManager));
+  toolRegistry.register(new ListFilesTool());
+
   Logger.debug("CLI", `Registered ${toolRegistry.getAll().length} tools`);
 
   // Create Agent
@@ -192,14 +203,15 @@ Available tools:
 - list_notes, read_note, create_note, update_note, delete_note (use teamPath for team notes)
 - get_user_info, list_teams, get_history
 - search_notes, export_note
+- read_file, write_file, list_files (for local file operations)
 
 Guidelines:
 - Use markdown formatting
 - Be concise in responses
 - Show note titles and IDs clearly
 - For team notes, include teamPath parameter
-- For file operations, use bash commands (cat, ls, echo, etc.)
-- Combine tools for complex operations (e.g., clone = read + create)
+- ALWAYS use read_file tool to read local files before uploading to HackMD
+- Combine tools for complex operations (e.g., upload local file = read_file + create_note)
 
 Working directory: ${workDir}`;
 }
