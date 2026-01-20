@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.6](https://github.com/EastSun566/hackwriter/compare/v0.0.5...v0.0.6) (2026-01-20)
+
+
+### Features
+
+* Implement automatic provider and model discovery ([8954e79](https://github.com/EastSun566/hackwriter/commit/8954e79fc91f2a2cea185a7c5869bf4663b2949a))
+* implement dynamic model discovery for OpenAI, Anthropic, and Ollama ([2baff0e](https://github.com/EastSun566/hackwriter/commit/2baff0e372aa8feb9cb289eab790700b4a822a1a))
+* simplify setup logic ([981350f](https://github.com/EastSun566/hackwriter/commit/981350f1da516619a8fdbcfd3d6a2e8823723867))
+
 ### [0.0.5](https://github.com/EastSun566/hackwriter/compare/v0.0.4...v0.0.5) (2026-01-19)
 
 
