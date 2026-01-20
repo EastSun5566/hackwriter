@@ -249,6 +249,7 @@ describe("ApprovalManager", () => {
       expect(readline.createInterface).toHaveBeenCalledWith({
         input: process.stdin,
         output: process.stdout,
+        terminal: false,
       });
     });
 
@@ -283,7 +284,7 @@ describe("ApprovalManager", () => {
         toolName: "tool",
         action: "action",
         description: "desc",
-      });
+      }, undefined); // mainRl is undefined in test
     });
 
     it("should allow changing provider at runtime", async () => {

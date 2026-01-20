@@ -64,9 +64,7 @@ export class OutputRenderer {
           this.activeSpinner = null;
         }
         
-        if (message.result.output) {
-          console.log(message.result.output);
-        }
+        // Don't log tool output - agent will describe the result
         
         this.toolCalls.delete(message.toolCallId);
         break;
@@ -91,6 +89,18 @@ export class OutputRenderer {
           this.activeSpinner.succeed(chalk.green('✓ Context compressed'));
           this.activeSpinner = null;
         }
+        break;
+
+      case 'approval_requested':
+        // Stop spinner during approval to show prompt clearly
+        if (this.activeSpinner) {
+          this.activeSpinner.stop();
+          this.activeSpinner = null;
+        }
+        break;
+
+      case 'approval_completed':
+        // Approval done, spinner will resume on next tool action if needed
         break;
 
       case 'step_completed':

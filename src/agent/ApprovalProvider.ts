@@ -1,3 +1,5 @@
+import * as readline from "readline";
+
 /**
  * Response type for approval requests
  */
@@ -11,11 +13,15 @@ export interface ApprovalProvider {
   /**
    * Request approval for a potentially dangerous operation
    * @param request The approval request details
+   * @param mainRl Optional main readline interface to pause during approval
    * @returns Promise resolving to approval response
    */
-  request(request: {
-    toolName: string;
-    action: string;
-    description: string;
-  }): Promise<ApprovalResponse>;
+  request(
+    request: {
+      toolName: string;
+      action: string;
+      description: string;
+    },
+    mainRl?: readline.Interface,
+  ): Promise<ApprovalResponse>;
 }

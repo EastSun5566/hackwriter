@@ -178,6 +178,10 @@ async function runAgent(options: {
     toolRegistry,
     systemPrompt: agent.systemPrompt,
   });
+
+  // Connect approval manager to shell's readline to prevent stdin conflicts
+  approvalManager.setMainRl(shell.getReadline());
+
   await shell.start(options.command);
 }
 

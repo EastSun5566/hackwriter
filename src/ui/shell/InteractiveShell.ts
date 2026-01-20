@@ -88,8 +88,11 @@ export class InteractiveShell {
 
     // Execute agent
     try {
+      Logger.debug("Shell", "Starting agent execution", { input: input.slice(0, 50) });
       await this.executor.execute(input);
+      Logger.debug("Shell", "Agent execution completed successfully");
     } catch (error) {
+      Logger.error("Shell", "Agent execution error", error);
       console.log(
         chalk.red("Error: "),
         error instanceof Error ? error.message : String(error),
@@ -141,8 +144,13 @@ export class InteractiveShell {
   }
 
   exit(): void {
+    Logger.debug("Shell", "exit() called - closing readline interface");
     this.isClosed = true;
     this.rl.close();
+  }
+
+  getReadline(): readline.Interface {
+    return this.rl;
   }
 
   private printWelcome(): void {
