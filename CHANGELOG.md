@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.7](https://github.com/EastSun566/hackwriter/compare/v0.0.6...v0.0.7) (2026-01-20)
+
+
+### Bug Fixes
+
+* readline conflict ([0884056](https://github.com/EastSun566/hackwriter/commit/0884056c779f439079a8a6222162a2a246adb764))
+
 ### [0.0.6](https://github.com/EastSun566/hackwriter/compare/v0.0.5...v0.0.6) (2026-01-20)
 
 
