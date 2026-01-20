@@ -2,6 +2,7 @@ import chalk from "chalk";
 import type { InteractiveShell } from "./InteractiveShell.js";
 import { AgentExecutor } from "../../agent/AgentExecutor.js";
 import { buildLanguageModel } from "../../agent/ModelFactory.js";
+import { ConfigurationLoader } from "../../config/ConfigurationLoader.js";
 import type { Agent } from "../../agent/Agent.js";
 
 type CommandHandler = (args: string[]) => Promise<void> | void;
@@ -56,11 +57,11 @@ export class CommandRegistry {
       name: "model",
       aliases: ["m"],
       description: "List or switch models",
-      handler: (args) => {
+      handler: async (args) => {
         if (args.length === 0) {
           this.listModels();
         } else {
-          this.switchModel(args[0]);
+          await this.switchModel(args[0]);
         }
       },
     });
@@ -164,7 +165,7 @@ export class CommandRegistry {
     }
   }
 
-  private switchModel(modelName: string): void {
+  private async switchModel(modelName: string): Promise<void> {
     const modelContext = this.shell.getModelContext();
     const { config } = modelContext;
 
@@ -195,6 +196,10 @@ export class CommandRegistry {
 
     this.shell.setExecutor(newExecutor);
     modelContext.currentModelName = modelName;
+
+    // Persist model selection
+    config.defaultModel = modelName;
+    await ConfigurationLoader.save(config);
 
     console.log(chalk.green(`✓ Switched to ${modelName}`));
   }

@@ -30,7 +30,7 @@ export async function discoverModels(
 ): Promise<Record<string, LLMModel>> {
   const models: Record<string, LLMModel> = {};
 
-  for (const [providerName] of Object.entries(providers)) {
+  for (const [providerName, provider] of Object.entries(providers)) {
     const definition = BUILT_IN_PROVIDERS[providerName];
     if (!definition) {
       Logger.debug('ProviderDiscovery', `No definition for provider: ${providerName}`);
@@ -40,11 +40,25 @@ export async function discoverModels(
     // Get models for this provider
     let modelsToAdd = definition.defaultModels;
 
-    // For Ollama, discover dynamically
-    if (definition.type === 'ollama') {
+    // Try dynamic discovery with API, fallback to static
+    if (definition.type === 'anthropic' && provider.apiKey) {
+      const { discoverAnthropicModels } = await import('./AnthropicDiscovery.js');
+      const discovered = await discoverAnthropicModels(provider.apiKey);
+      if (discovered.length > 0) {
+        modelsToAdd = discovered;
+        Logger.debug('ProviderDiscovery', `Anthropic API: ${discovered.length} models`);
+      }
+    } else if (definition.type === 'openai' && provider.apiKey) {
+      const { discoverOpenAIModels } = await import('./OpenAIDiscovery.js');
+      const discovered = await discoverOpenAIModels(provider.apiKey);
+      if (discovered.length > 0) {
+        modelsToAdd = discovered;
+        Logger.debug('ProviderDiscovery', `OpenAI API: ${discovered.length} models`);
+      }
+    } else if (definition.type === 'ollama') {
       const { discoverOllamaModels } = await import('./OllamaDiscovery.js');
-      modelsToAdd = await discoverOllamaModels();
-      Logger.debug('ProviderDiscovery', `Discovered ${modelsToAdd.length} Ollama models`);
+      modelsToAdd = await discoverOllamaModels(provider.baseUrl ?? 'http://localhost:11434');
+      Logger.debug('ProviderDiscovery', `Ollama: ${modelsToAdd.length} models`);
     }
 
     for (const modelDef of modelsToAdd) {

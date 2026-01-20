@@ -1,45 +1,51 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { Logger } from '../utils/Logger.js';
 import type { ModelDefinition } from './ProviderRegistry.js';
 
-const execAsync = promisify(exec);
+interface OllamaModelDetails {
+  format: string;
+  family: string;
+  families: string[];
+  parameter_size: string;
+  quantization_level: string;
+}
 
-export interface OllamaModel {
+interface OllamaModel {
   name: string;
-  id: string;
-  size: string;
-  modified: string;
+  modified_at: string;
+  size: number;
+  digest: string;
+  details: OllamaModelDetails;
+}
+
+interface OllamaListResponse {
+  models: OllamaModel[];
 }
 
 /**
- * Discover Ollama models by running `ollama list`
+ * Discover Ollama models by calling the HTTP API
  */
-export async function discoverOllamaModels(): Promise<ModelDefinition[]> {
+export async function discoverOllamaModels(baseUrl = 'http://localhost:11434/api'): Promise<ModelDefinition[]> {
   try {
-    const { stdout } = await execAsync('ollama list');
-    const lines = stdout.trim().split('\n');
+    // AI SDK uses baseUrl with /api suffix, but /api/tags endpoint needs host base
+    const hostUrl = baseUrl.replace(/\/api\/?$/, '');
+    const response = await fetch(`${hostUrl}/api/tags`);
 
-    // Skip header line
-    const modelLines = lines.slice(1);
+    if (!response.ok) {
+      Logger.debug('OllamaDiscovery', `API request failed: ${response.status}`);
+      return [];
+    }
 
+    const data = await response.json() as OllamaListResponse;
     const models: ModelDefinition[] = [];
 
-    for (const line of modelLines) {
-      // Parse line: "qwen2.5-coder:7b    dae161e27b0e    4.7 GB    3 days ago"
-      const regex = /^(\S+)\s+/;
-      const match = regex.exec(line);
-      if (!match) continue;
-
-      const modelId = match[1];
-
+    for (const model of data.models) {
       models.push({
-        id: modelId,
-        name: modelId, // Use ID as name for now
+        id: model.name,
+        name: model.name,
         contextWindow: 128000, // Default context window
       });
 
-      Logger.debug('OllamaDiscovery', `Discovered Ollama model: ${modelId}`);
+      Logger.debug('OllamaDiscovery', `Discovered Ollama model: ${model.name}`);
     }
 
     return models;

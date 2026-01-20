@@ -7,6 +7,13 @@ vi.mock("../../../src/agent/ModelFactory.js", () => ({
   buildLanguageModel: vi.fn(() => ({}) as any),
 }));
 
+// Mock ConfigurationLoader
+vi.mock("../../../src/config/ConfigurationLoader.js", () => ({
+  ConfigurationLoader: {
+    save: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 // Mock AgentExecutor as a class
 vi.mock("../../../src/agent/AgentExecutor.js", () => ({
   AgentExecutor: vi.fn().mockImplementation(() => ({
