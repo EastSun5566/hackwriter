@@ -1,5 +1,6 @@
 export interface HackMDConfig {
-  baseUrl: string;
+  apiBaseUrl?: string;
+  mcpBaseUrl?: string;
   apiToken: string;
 }
 
@@ -31,3 +32,4 @@ export interface Configuration {
     maxRetriesPerStep: number;
   };
 }
+

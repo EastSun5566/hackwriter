@@ -69,7 +69,6 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
     const config: Partial<Configuration> = {
       services: {
         hackmd: {
-          baseUrl: 'https://api.hackmd.io/v1',
           apiToken: hackmdToken,
         },
       },

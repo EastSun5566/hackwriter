@@ -132,29 +132,57 @@ async function runAgent(options: {
   if (!config.services.hackmd) {
     throw new Error("HackMD service configuration is missing");
   }
-  const hackmdClient = new API(config.services.hackmd.apiToken);
 
   const approvalManager = new ApprovalManager(undefined, options.yolo ?? false);
-
   const toolRegistry = new ToolRegistry();
 
-  // Note tools (now support both personal and team notes via optional teamPath)
-  toolRegistry.register(new ListNotesTool(hackmdClient));
-  toolRegistry.register(new ReadNoteTool(hackmdClient));
-  toolRegistry.register(new CreateNoteTool(hackmdClient, approvalManager));
-  toolRegistry.register(new UpdateNoteTool(hackmdClient, approvalManager));
-  toolRegistry.register(new DeleteNoteTool(hackmdClient, approvalManager));
+  const hackmdConfig = config.services.hackmd;
+  let usedMcp = false;
 
-  // User & team management
-  toolRegistry.register(new GetUserInfoTool(hackmdClient));
-  toolRegistry.register(new ListTeamsTool(hackmdClient));
-  toolRegistry.register(new GetHistoryTool(hackmdClient));
+  // Try MCP if mcpBaseUrl is configured
+  if (hackmdConfig.mcpBaseUrl) {
+    Logger.info("CLI", "Trying Remote MCP mode...");
+    
+    // Dynamic import to avoid loading MCP SDK when not needed
+    const { MCPClient, MCPToolAdapter } = await import("./mcp/index.js");
+    
+    const mcpClient = new MCPClient({
+      serverUrl: hackmdConfig.mcpBaseUrl,
+      apiToken: hackmdConfig.apiToken,
+    });
 
-  // Advanced features
-  toolRegistry.register(new SearchNotesTool(hackmdClient));
-  toolRegistry.register(new ExportNoteTool(hackmdClient));
+    try {
+      await mcpClient.connect();
+      
+      // Register MCP tools
+      const mcpTools = await mcpClient.listTools();
+      for (const toolDef of mcpTools) {
+        toolRegistry.register(new MCPToolAdapter(mcpClient, toolDef));
+        Logger.debug("CLI", `Registered MCP tool: ${toolDef.name}`);
+      }
 
-  // File tools (for local file operations)
+      Logger.info("CLI", `Connected to MCP server with ${mcpTools.length} tools`);
+      usedMcp = true;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red(`Failed to connect to MCP server: ${msg}`));
+      
+      // Hint for SSL issues in local development
+      if (msg.includes("fetch failed") || msg.includes("certificate") || msg.includes("CERT")) {
+        console.error(chalk.gray("Hint: For local dev with self-signed certs, try: NODE_TLS_REJECT_UNAUTHORIZED=0"));
+      }
+      
+      console.error(chalk.yellow("Falling back to local HackMD API mode..."));
+    }
+  }
+
+  // Use local HackMD API if MCP not used
+  if (!usedMcp) {
+    Logger.info("CLI", "Using Local HackMD API mode");
+    registerLocalHackMDTools(toolRegistry, hackmdConfig.apiToken, approvalManager);
+  }
+
+  // File tools (always local)
   toolRegistry.register(new ReadFileTool());
   toolRegistry.register(new WriteFileTool(approvalManager));
   toolRegistry.register(new ListFilesTool());
@@ -214,6 +242,32 @@ Guidelines:
 - Combine tools for complex operations (e.g., upload local file = read_file + create_note)
 
 Working directory: ${workDir}`;
+}
+
+function registerLocalHackMDTools(
+  toolRegistry: ToolRegistry,
+  apiToken: string,
+  approvalManager: ApprovalManager
+): void {
+  const hackmdClient = new API(apiToken);
+
+  // Note tools (support both personal and team notes via optional teamPath)
+  toolRegistry.register(new ListNotesTool(hackmdClient));
+  toolRegistry.register(new ReadNoteTool(hackmdClient));
+  toolRegistry.register(new CreateNoteTool(hackmdClient, approvalManager));
+  toolRegistry.register(new UpdateNoteTool(hackmdClient, approvalManager));
+  toolRegistry.register(new DeleteNoteTool(hackmdClient, approvalManager));
+
+  // User & team management
+  toolRegistry.register(new GetUserInfoTool(hackmdClient));
+  toolRegistry.register(new ListTeamsTool(hackmdClient));
+  toolRegistry.register(new GetHistoryTool(hackmdClient));
+
+  // Advanced features
+  toolRegistry.register(new SearchNotesTool(hackmdClient));
+  toolRegistry.register(new ExportNoteTool(hackmdClient));
+
+  Logger.debug("CLI", "Registered local HackMD tools");
 }
 
 program.parse();

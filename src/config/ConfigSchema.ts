@@ -5,14 +5,15 @@ import { z } from "zod";
  */
 
 export const HackMDConfigSchema = z.object({
-  baseUrl: z.string().url(),
+  apiBaseUrl: z.url().optional(),
+  mcpBaseUrl: z.url().optional(),
   apiToken: z.string().min(1, "API token is required"),
 });
 
 export const LLMProviderSchema = z.object({
   type: z.enum(["anthropic", "openai", "ollama"]),
   apiKey: z.string().min(1, "API key is required").optional(),
-  baseUrl: z.string().url().optional(),
+  baseUrl: z.url().optional(),
   organizationId: z.string().optional(),
   projectId: z.string().optional(),
 });

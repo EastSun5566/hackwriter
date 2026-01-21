@@ -53,8 +53,10 @@ export class ConfigurationLoader {
         Object.keys(models)[0] ??
         'anthropic-claude-3-5-haiku-latest';
 
-      // 5. Load HackMD token from env if not in config
+      // 5. Load HackMD config from env if not in config
       const hackmdToken = userConfig.services?.hackmd?.apiToken ?? process.env.HACKMD_API_TOKEN;
+      const hackmdApiBaseUrl = userConfig.services?.hackmd?.apiBaseUrl ?? process.env.HACKMD_API_URL ?? 'https://api.hackmd.io/v1';
+      const hackmdMcpBaseUrl = userConfig.services?.hackmd?.mcpBaseUrl ?? process.env.HACKMD_MCP_URL ?? 'https://mcp.hackmd.io/v1';
 
       const config: Configuration = {
         defaultModel,
@@ -63,7 +65,8 @@ export class ConfigurationLoader {
         services: {
           ...userConfig.services,
           hackmd: hackmdToken ? {
-            baseUrl: 'https://api.hackmd.io/v1',
+            apiBaseUrl: hackmdApiBaseUrl,
+            mcpBaseUrl: hackmdMcpBaseUrl,
             apiToken: hackmdToken,
           } : userConfig.services?.hackmd,
         },

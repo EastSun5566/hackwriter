@@ -1,17 +1,27 @@
-import type { Tool } from './Tool.js';
+import type { ToolResult, ToolSchema } from './Tool.js';
+
+/**
+ * Interface for tool-like objects (compatible with both Tool class and MCPToolAdapter)
+ */
+export interface ToolLike {
+  name: string;
+  description: string;
+  inputSchema: ToolSchema;
+  call(params: Record<string, unknown>): Promise<ToolResult>;
+}
 
 export class ToolRegistry {
-  private tools = new Map<string, Tool>();
+  private tools = new Map<string, ToolLike>();
 
-  register(tool: Tool): void {
+  register(tool: ToolLike): void {
     this.tools.set(tool.name, tool);
   }
 
-  get(name: string): Tool | undefined {
+  get(name: string): ToolLike | undefined {
     return this.tools.get(name);
   }
 
-  getAll(): Tool[] {
+  getAll(): ToolLike[] {
     return Array.from(this.tools.values());
   }
 
@@ -39,3 +49,4 @@ export class ToolRegistry {
     this.tools.clear();
   }
 }
+
