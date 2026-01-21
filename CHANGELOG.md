@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.8](https://github.com/EastSun566/hackwriter/compare/v0.0.7...v0.0.8) (2026-01-21)
+
+
+### Bug Fixes
+
+* connect file tools ([4e71dc0](https://github.com/EastSun566/hackwriter/commit/4e71dc0145ff06c7df5ec21e89cb4e5c18def7b6))
+
 ### [0.0.7](https://github.com/EastSun566/hackwriter/compare/v0.0.6...v0.0.7) (2026-01-20)
 
 
