@@ -27,11 +27,6 @@ export const BUILT_IN_PROVIDERS: Record<string, ProviderDefinition> = {
         name: 'Claude 3.5 Sonnet',
         contextWindow: 200000,
       },
-      {
-        id: 'claude-opus-4-latest',
-        name: 'Claude Opus 4',
-        contextWindow: 200000,
-      },
     ],
   },
   openai: {
@@ -47,12 +42,7 @@ export const BUILT_IN_PROVIDERS: Record<string, ProviderDefinition> = {
         id: 'gpt-4o',
         name: 'GPT-4o',
         contextWindow: 128000,
-      },
-      {
-        id: 'o1',
-        name: 'O1',
-        contextWindow: 200000,
-      },
+      }
     ],
   },
   ollama: {

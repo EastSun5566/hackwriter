@@ -153,6 +153,42 @@ export class InteractiveShell {
     return this.rl;
   }
 
+  /**
+   * Suspend readline for external prompts (like inquirer).
+   * Must close and recreate because inquirer needs exclusive stdin access.
+   */
+  suspendReadline(): void {
+    this.rl.close();
+  }
+
+  /**
+   * Recreate readline after external prompts are done
+   */
+  recreateReadline(): void {
+    this.rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      prompt: this.getPrompt(),
+    });
+
+    // Re-attach the line handler
+    this.rl.on("line", (input) => {
+      void this.handleInput(input.trim())
+        .catch((error) => {
+          Logger.error("Shell", "handleInput error", error);
+        })
+        .finally(() => {
+          if (this.isClosed) return;
+          this.rl.setPrompt(this.getPrompt());
+          this.rl.prompt();
+        });
+    });
+
+    this.rl.on("close", () => {
+      this.isClosed = true;
+    });
+  }
+
   private printWelcome(): void {
     console.log(chalk.bold.cyan("\n📝 HackWriter\n"));
     console.log(chalk.gray("Writing agent for HackMD"));

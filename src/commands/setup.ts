@@ -10,18 +10,21 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
   // 1. Show what's already discovered
   const providers = discoverProviders();
   const models = await discoverModels(providers);
+  const modelCount = Object.keys(models).length;
+
+  // Check if Ollama actually has models (not just detected as provider)
+  const hasOllamaModels = Object.values(models).some(m => m.provider === 'ollama');
 
   if (Object.keys(providers).length > 0) {
     console.log(chalk.green('Environment Detection:'));
     for (const [name, provider] of Object.entries(providers)) {
       if (provider.apiKey) {
         console.log(chalk.green(`  ✓ ${name.toUpperCase()}_API_KEY found`));
-      } else if (name === 'ollama') {
+      } else if (name === 'ollama' && hasOllamaModels) {
         console.log(chalk.green('  ✓ Ollama detected'));
       }
     }
 
-    const modelCount = Object.keys(models).length;
     if (modelCount > 0) {
       console.log(chalk.green(`  ✓ ${modelCount} model(s) available\n`));
     }

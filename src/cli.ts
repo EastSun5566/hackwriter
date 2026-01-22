@@ -165,14 +165,8 @@ async function runAgent(options: {
       usedMcp = true;
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error(chalk.red(`Failed to connect to MCP server: ${msg}`));
-      
-      // Hint for SSL issues in local development
-      if (msg.includes("fetch failed") || msg.includes("certificate") || msg.includes("CERT")) {
-        console.error(chalk.gray("Hint: For local dev with self-signed certs, try: NODE_TLS_REJECT_UNAUTHORIZED=0"));
-      }
-      
-      console.error(chalk.yellow("Falling back to local HackMD API mode..."));
+      console.warn(chalk.red(`Failed to connect to MCP server: ${msg}`));
+      console.warn(chalk.yellow("Falling back use HackMD API"));
     }
   }
 
