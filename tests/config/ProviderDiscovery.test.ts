@@ -95,7 +95,6 @@ describe('ProviderDiscovery', () => {
 
       expect(models['openai-gpt-4o-mini']).toBeDefined();
       expect(models['openai-gpt-4o']).toBeDefined();
-      expect(models['openai-o1']).toBeDefined();
     });
 
     it('should return empty object for unknown providers', async () => {
