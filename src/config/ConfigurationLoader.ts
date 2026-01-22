@@ -107,30 +107,35 @@ export class ConfigurationLoader {
 
   static async save(config: Configuration): Promise<void> {
     try {
-      // Validate before saving
-      const validation = safeValidateConfiguration(config);
-      
-      if (!validation.success) {
-        const errorMessages = validation.errors!
-          .map((e: { path: string; message: string }) => `  - ${e.path}: ${e.message}`)
-          .join('\n');
-          
-        throw ErrorFactory.validation(
-          'configuration',
-          `Invalid configuration data:\n${errorMessages}`
-        );
+      const persistConfig: Record<string, unknown> = {
+        defaultModel: config.defaultModel,
+        services: config.services,
+        loopControl: config.loopControl,
+      };
+
+      const providerKeys: Record<string, { type: string; apiKey?: string }> = {};
+      for (const [name, provider] of Object.entries(config.providers)) {
+        if (provider.apiKey) {
+          providerKeys[name] = {
+            type: provider.type,
+            apiKey: provider.apiKey,
+          };
+        }
       }
-      
+      if (Object.keys(providerKeys).length > 0) {
+        persistConfig.providers = providerKeys;
+      }
+
       const dir = path.dirname(this.configPath);
       await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(
         this.configPath,
-        JSON.stringify(config, null, 2),
+        JSON.stringify(persistConfig, null, 2),
         'utf-8'
       );
-      
+
       Logger.debug('ConfigLoader', 'Configuration saved successfully');
-      
+
     } catch (error) {
       if (error instanceof Error && error.name === 'AppError') {
         throw error;
