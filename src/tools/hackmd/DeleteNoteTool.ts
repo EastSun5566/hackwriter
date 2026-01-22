@@ -36,6 +36,15 @@ export class DeleteNoteTool extends Tool<DeleteNoteParams> {
   }
 
   async call(params: DeleteNoteParams): Promise<ToolResult> {
+    // Validate inputs
+    if (!params.noteId || params.noteId.trim() === '') {
+      return this.error(
+        'Note ID cannot be empty',
+        'Note ID is required',
+        'Invalid ID',
+      );
+    }
+
     const isTeamNote = Boolean(params.teamPath);
     const actionDesc = isTeamNote
       ? `Delete team note ${params.noteId} from team "${params.teamPath}"? This action cannot be undone.`

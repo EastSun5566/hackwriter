@@ -60,6 +60,34 @@ export class CreateNoteTool extends Tool<CreateNoteParams> {
   }
 
   async call(params: CreateNoteParams): Promise<ToolResult> {
+    // Validate inputs
+    if (!params.title || params.title.trim() === '') {
+      return this.error(
+        'Note title cannot be empty',
+        'Title is required',
+        'Invalid title',
+      );
+    }
+
+    if (!params.content || params.content.trim() === '') {
+      return this.error(
+        'Note content cannot be empty',
+        'Content is required',
+        'Invalid content',
+      );
+    }
+
+    // Check content size (5MB limit for HackMD)
+    const MAX_CONTENT_SIZE = 5 * 1024 * 1024;
+    if (params.content.length > MAX_CONTENT_SIZE) {
+      const sizeMB = (params.content.length / (1024 * 1024)).toFixed(2);
+      return this.error(
+        `Content too large (${sizeMB}MB, maximum ${MAX_CONTENT_SIZE / (1024 * 1024)}MB allowed)`,
+        'Content exceeds HackMD size limit',
+        'Too large',
+      );
+    }
+
     const isTeamNote = Boolean(params.teamPath);
     const actionDesc = isTeamNote
       ? `Create team note "${params.title}" in team "${params.teamPath}"`

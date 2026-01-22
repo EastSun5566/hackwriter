@@ -1,6 +1,15 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { Logger } from "../utils/Logger.js";
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJson = JSON.parse(
+  readFileSync(join(__dirname, "../../package.json"), "utf-8")
+) as { version: string };
 
 export interface MCPClientConfig {
   serverUrl: string;
@@ -53,7 +62,7 @@ export class MCPClient {
     this.client = new Client(
       {
         name: "hackwriter-cli",
-        version: "0.0.8",
+        version: packageJson.version,
       },
       {
         capabilities: {},

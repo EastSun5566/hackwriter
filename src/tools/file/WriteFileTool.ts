@@ -37,6 +37,36 @@ export class WriteFileTool extends Tool<WriteFileParams> {
   }
 
   async call(params: WriteFileParams): Promise<ToolResult> {
+    // Validate file path
+    if (!params.filePath || params.filePath.trim() === '') {
+      return this.error(
+        'File path cannot be empty',
+        'File path is required',
+        'Invalid path',
+      );
+    }
+
+    // Prevent path traversal attacks
+    const normalizedPath = dirname(params.filePath);
+    if (normalizedPath.includes('..')) {
+      return this.error(
+        'Path traversal is not allowed for security reasons',
+        'Security violation: path traversal detected',
+        'Security error',
+      );
+    }
+
+    // Check content size (10MB limit)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    if (params.content.length > MAX_FILE_SIZE) {
+      const sizeMB = (params.content.length / (1024 * 1024)).toFixed(2);
+      return this.error(
+        `Content too large (${sizeMB}MB, maximum ${MAX_FILE_SIZE / (1024 * 1024)}MB allowed)`,
+        'Content exceeds size limit',
+        'Too large',
+      );
+    }
+
     const approved = await this.approvalManager.request(
       this.name,
       'write_file',

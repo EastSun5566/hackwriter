@@ -1,5 +1,5 @@
 import { promises as fs, type Stats } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, dirname } from 'node:path';
 import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.js';
 
 interface ListFilesParams {
@@ -32,6 +32,25 @@ export class ListFilesTool extends Tool<ListFilesParams> {
   };
 
   async call(params: ListFilesParams): Promise<ToolResult> {
+    // Validate directory path
+    if (!params.directoryPath || params.directoryPath.trim() === '') {
+      return this.error(
+        'Directory path cannot be empty',
+        'Directory path is required',
+        'Invalid path',
+      );
+    }
+
+    // Prevent path traversal attacks
+    const normalizedPath = dirname(params.directoryPath);
+    if (normalizedPath.includes('..')) {
+      return this.error(
+        'Path traversal is not allowed for security reasons',
+        'Security violation: path traversal detected',
+        'Security error',
+      );
+    }
+
     try {
       const files = await this.listFiles(
         params.directoryPath,
@@ -47,7 +66,12 @@ export class ListFilesTool extends Tool<ListFilesParams> {
         );
       }
 
-      const output = files
+      // Limit output for very large directories
+      const MAX_FILES_DISPLAY = 100;
+      const displayFiles = files.slice(0, MAX_FILES_DISPLAY);
+      const hasMore = files.length > MAX_FILES_DISPLAY;
+
+      const output = displayFiles
         .map((file, index) => {
           const stats = file.stats;
           const type = stats.isDirectory() ? '📁' : '📄';
@@ -57,8 +81,12 @@ export class ListFilesTool extends Tool<ListFilesParams> {
         })
         .join('\n\n');
 
+      const finalOutput = hasMore
+        ? `${output}\n\n... and ${files.length - MAX_FILES_DISPLAY} more items (truncated for display)`
+        : output;
+
       return this.ok(
-        output,
+        finalOutput,
         `Found ${files.length} items in ${params.directoryPath}`,
         `${files.length} items`,
       );

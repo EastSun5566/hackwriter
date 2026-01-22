@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
+
 import { Command } from "commander";
 import chalk from "chalk";
 import { API } from "@hackmd/api";
@@ -11,12 +15,10 @@ import { ConfigurationLoader } from "./config/ConfigurationLoader.js";
 import { SessionManager } from "./session/SessionManager.js";
 import { InteractiveShell } from "./ui/shell/InteractiveShell.js";
 import { setupCommand } from "./commands/setup.js";
-import type { Agent } from "./agent/Agent.js";
 import { buildLanguageModel } from "./agent/ModelFactory.js";
 import { Logger } from "./utils/Logger.js";
-import { readFileSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { ErrorFactory } from "./utils/ErrorTypes.js";
+import type { Agent } from "./agent/Agent.js";
 
 import {
   ListNotesTool,
@@ -58,7 +60,27 @@ program
     try {
       await runAgent(options);
     } catch (error) {
-      console.error(chalk.red("Fatal error:"), error);
+      // Handle AppError with user-friendly messages
+      if (error instanceof Error && error.name === 'AppError') {
+        // Type assertion is safe here because we checked error.name
+        const appError = error as unknown as { toUserString: () => string };
+        console.error(chalk.red('\n' + appError.toUserString()));
+        
+        // Show stack trace in debug mode
+        if (options.debug) {
+          Logger.error('CLI', 'Fatal error details', error);
+        }
+      } else if (error instanceof Error) {
+        console.error(chalk.red('\n❌ Fatal error: ' + error.message));
+        
+        if (options.debug) {
+          console.error(chalk.gray('\nStack trace:'));
+          console.error(chalk.gray(error.stack ?? 'No stack trace available'));
+        }
+      } else {
+        console.error(chalk.red('\n❌ Fatal error: ' + String(error)));
+      }
+      
       process.exit(1);
     }
   });
@@ -120,17 +142,31 @@ async function runAgent(options: {
 
   const modelName = options.model ?? config.defaultModel;
   const modelConfig = config.models[modelName];
-  Logger.debug("CLI", `Model: ${modelConfig.provider}/${modelConfig.model}`);
-  const providerConfig = config.providers[modelConfig.provider];
-  if (!providerConfig) {
-    throw new Error(
-      `Provider configuration '${modelConfig.provider}' is missing`,
+  
+  if (!modelConfig) {
+    throw ErrorFactory.configuration(
+      `Model "${modelName}" not found in configuration`,
+      `Available models: ${Object.keys(config.models).join(', ')}`
     );
   }
+  
+  Logger.debug("CLI", `Model: ${modelConfig.provider}/${modelConfig.model}`);
+  
+  const providerConfig = config.providers[modelConfig.provider];
+  if (!providerConfig) {
+    throw ErrorFactory.configuration(
+      `Provider configuration '${modelConfig.provider}' is missing`,
+      `Please run 'hackwriter setup' to configure the provider`
+    );
+  }
+  
   const languageModel = buildLanguageModel(providerConfig, modelConfig.model);
 
   if (!config.services.hackmd) {
-    throw new Error("HackMD service configuration is missing");
+    throw ErrorFactory.configuration(
+      "HackMD service configuration is missing",
+      "Please run 'hackwriter setup' to configure HackMD API token"
+    );
   }
 
   const approvalManager = new ApprovalManager(undefined, options.yolo ?? false);
