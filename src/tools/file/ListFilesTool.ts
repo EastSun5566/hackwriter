@@ -1,6 +1,7 @@
 import { promises as fs, type Stats } from 'node:fs';
 import { join, relative, dirname } from 'node:path';
 import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.js';
+import { MAX_FILES_DISPLAY } from '../../config/constants.js';
 
 interface ListFilesParams {
   directoryPath: string;
@@ -67,7 +68,6 @@ export class ListFilesTool extends Tool<ListFilesParams> {
       }
 
       // Limit output for very large directories
-      const MAX_FILES_DISPLAY = 100;
       const displayFiles = files.slice(0, MAX_FILES_DISPLAY);
       const hasMore = files.length > MAX_FILES_DISPLAY;
 

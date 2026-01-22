@@ -2,6 +2,7 @@ import type { API } from "@hackmd/api";
 import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.js";
 import type { ApprovalManager } from "../../agent/ApprovalManager.js";
 import { handleHackMDError } from "./errorHandler.js";
+import { withRetry, shouldRetryHttpError } from "../../utils/retry.js";
 
 interface DeleteNoteParams {
   noteId: string;
@@ -65,11 +66,19 @@ export class DeleteNoteTool extends Tool<DeleteNoteParams> {
     }
 
     try {
-      if (isTeamNote) {
-        await this.hackmdClient.deleteTeamNote(params.teamPath!, params.noteId);
-      } else {
-        await this.hackmdClient.deleteNote(params.noteId);
-      }
+      await withRetry(
+        async () => {
+          if (isTeamNote) {
+            await this.hackmdClient.deleteTeamNote(params.teamPath!, params.noteId);
+          } else {
+            await this.hackmdClient.deleteNote(params.noteId);
+          }
+        },
+        {
+          maxRetries: 3,
+          shouldRetry: shouldRetryHttpError,
+        }
+      );
 
       const output = isTeamNote
         ? `✅ Team note deleted successfully\n**ID:** \`${params.noteId}\`\n**Team:** ${params.teamPath}`

@@ -2,6 +2,8 @@ import type { API } from "@hackmd/api";
 import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.js";
 import type { ApprovalManager } from "../../agent/ApprovalManager.js";
 import { handleHackMDError } from "./errorHandler.js";
+import { MAX_HACKMD_CONTENT_SIZE } from "../../config/constants.js";
+import { withRetry, shouldRetryHttpError } from "../../utils/retry.js";
 
 interface UpdateNoteParams {
   noteId: string;
@@ -59,11 +61,10 @@ export class UpdateNoteTool extends Tool<UpdateNoteParams> {
     }
 
     // Check content size (5MB limit for HackMD)
-    const MAX_CONTENT_SIZE = 5 * 1024 * 1024;
-    if (params.content.length > MAX_CONTENT_SIZE) {
+    if (params.content.length > MAX_HACKMD_CONTENT_SIZE) {
       const sizeMB = (params.content.length / (1024 * 1024)).toFixed(2);
       return this.error(
-        `Content too large (${sizeMB}MB, maximum ${MAX_CONTENT_SIZE / (1024 * 1024)}MB allowed)`,
+        `Content too large (${sizeMB}MB, maximum ${MAX_HACKMD_CONTENT_SIZE / (1024 * 1024)}MB allowed)`,
         'Content exceeds HackMD size limit',
         'Too large',
       );
@@ -89,19 +90,27 @@ export class UpdateNoteTool extends Tool<UpdateNoteParams> {
     }
 
     try {
-      if (isTeamNote) {
-        await this.hackmdClient.updateTeamNote(
-          params.teamPath!,
-          params.noteId,
-          {
-            content: params.content,
-          },
-        );
-      } else {
-        await this.hackmdClient.updateNote(params.noteId, {
-          content: params.content,
-        });
-      }
+      await withRetry(
+        async () => {
+          if (isTeamNote) {
+            await this.hackmdClient.updateTeamNote(
+              params.teamPath!,
+              params.noteId,
+              {
+                content: params.content,
+              },
+            );
+          } else {
+            await this.hackmdClient.updateNote(params.noteId, {
+              content: params.content,
+            });
+          }
+        },
+        {
+          maxRetries: 3,
+          shouldRetry: shouldRetryHttpError,
+        }
+      );
 
       const output = isTeamNote
         ? `✅ Team note updated successfully!\n**ID:** \`${params.noteId}\`\n**Team:** ${params.teamPath}`

@@ -1,6 +1,7 @@
 import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.js';
 import { promises as fs } from 'node:fs';
 import { dirname } from 'node:path';
+import { MAX_FILE_DISPLAY_SIZE } from '../../config/constants.js';
 
 interface ReadFileParams {
   filePath: string;
@@ -46,15 +47,14 @@ export class ReadFileTool extends Tool<ReadFileParams> {
       const stats = await fs.stat(params.filePath);
 
       // Warn if file is very large
-      const MAX_DISPLAY_SIZE = 1024 * 1024; // 1MB
-      if (stats.size > MAX_DISPLAY_SIZE) {
+      if (stats.size > MAX_FILE_DISPLAY_SIZE) {
         const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
         return this.ok(
           `⚠️ File is very large (${sizeMB}MB)\n\n` +
           `**File:** ${params.filePath}\n` +
           `**Size:** ${stats.size} bytes\n` +
           `**Modified:** ${stats.mtime.toLocaleString()}\n\n` +
-          `**Content (truncated to 1MB):**\n\`\`\`\n${content.slice(0, MAX_DISPLAY_SIZE)}\n...\n[truncated]\n\`\`\``,
+          `**Content (truncated to 1MB):**\n\`\`\`\n${content.slice(0, MAX_FILE_DISPLAY_SIZE)}\n...\n[truncated]\n\`\`\``,
           `Read file (truncated): ${params.filePath}`,
           'Read (truncated)',
         );

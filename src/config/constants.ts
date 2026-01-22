@@ -1,0 +1,37 @@
+/**
+ * Application-wide constants
+ * Centralizes magic strings and configuration values
+ */
+
+// Directory and file paths
+export const CONFIG_DIR = '.hackwriter';
+export const CONFIG_FILE = 'config.json';
+export const SESSIONS_DIR = 'sessions';
+
+// File size limits
+export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB for local files
+export const MAX_HACKMD_CONTENT_SIZE = 5 * 1024 * 1024; // 5MB for HackMD API
+export const MAX_FILE_DISPLAY_SIZE = 1024 * 1024; // 1MB display limit
+
+// Display limits
+export const MAX_FILES_DISPLAY = 100; // Maximum files to display in list
+
+// Rate limiting defaults
+export const DEFAULT_RATE_LIMIT_REQUESTS = 10; // requests per window
+export const DEFAULT_RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+
+// Retry defaults
+export const DEFAULT_MAX_RETRIES = 3;
+export const DEFAULT_RETRY_DELAY_MS = 1000;
+export const DEFAULT_MAX_RETRY_DELAY_MS = 30000;
+
+// HackMD API defaults
+export const DEFAULT_HACKMD_API_URL = 'https://api.hackmd.io/v1';
+export const DEFAULT_HACKMD_MCP_URL = 'https://mcp.hackmd.io/v1';
+
+// Model defaults
+export const DEFAULT_MODEL = 'anthropic-claude-3-5-haiku-latest';
+
+// Loop control defaults
+export const DEFAULT_MAX_STEPS_PER_RUN = 100;
+export const DEFAULT_MAX_RETRIES_PER_STEP = 3;

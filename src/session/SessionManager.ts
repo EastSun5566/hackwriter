@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import { Logger } from '../utils/Logger.js';
+import { CONFIG_DIR, SESSIONS_DIR } from '../config/constants.js';
 
 export interface Session {
   id: string;
@@ -13,8 +14,8 @@ export interface Session {
 export class SessionManager {
   private static sessionsDir = path.join(
     os.homedir(),
-    '.hackwriter',
-    'sessions'
+    CONFIG_DIR,
+    SESSIONS_DIR
   );
 
   static async create(workDir: string): Promise<Session> {

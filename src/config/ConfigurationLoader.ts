@@ -6,12 +6,21 @@ import { safeValidateConfiguration } from './ConfigSchema.js';
 import { discoverProviders, discoverModels } from './ProviderDiscovery.js';
 import { ErrorFactory } from '../utils/ErrorTypes.js';
 import { Logger } from '../utils/Logger.js';
+import {
+  CONFIG_DIR,
+  CONFIG_FILE,
+  DEFAULT_HACKMD_API_URL,
+  DEFAULT_HACKMD_MCP_URL,
+  DEFAULT_MODEL,
+  DEFAULT_MAX_STEPS_PER_RUN,
+  DEFAULT_MAX_RETRIES_PER_STEP,
+} from './constants.js';
 
 export class ConfigurationLoader {
   private static configPath = path.join(
     os.homedir(),
-    '.hackwriter',
-    'config.json'
+    CONFIG_DIR,
+    CONFIG_FILE
   );
 
   static async load(): Promise<Configuration> {
@@ -51,12 +60,12 @@ export class ConfigurationLoader {
       const defaultModel =
         userConfig.defaultModel ??
         Object.keys(models)[0] ??
-        'anthropic-claude-3-5-haiku-latest';
+        DEFAULT_MODEL;
 
       // 5. Load HackMD config from env if not in config
       const hackmdToken = userConfig.services?.hackmd?.apiToken ?? process.env.HACKMD_API_TOKEN;
-      const hackmdApiBaseUrl = userConfig.services?.hackmd?.apiBaseUrl ?? process.env.HACKMD_API_URL ?? 'https://api.hackmd.io/v1';
-      const hackmdMcpBaseUrl = userConfig.services?.hackmd?.mcpBaseUrl ?? process.env.HACKMD_MCP_URL ?? 'https://mcp.hackmd.io/v1';
+      const hackmdApiBaseUrl = userConfig.services?.hackmd?.apiBaseUrl ?? process.env.HACKMD_API_URL ?? DEFAULT_HACKMD_API_URL;
+      const hackmdMcpBaseUrl = userConfig.services?.hackmd?.mcpBaseUrl ?? process.env.HACKMD_MCP_URL ?? DEFAULT_HACKMD_MCP_URL;
 
       const config: Configuration = {
         defaultModel,
@@ -71,8 +80,8 @@ export class ConfigurationLoader {
           } : userConfig.services?.hackmd,
         },
         loopControl: userConfig.loopControl ?? {
-          maxStepsPerRun: 100,
-          maxRetriesPerStep: 3,
+          maxStepsPerRun: DEFAULT_MAX_STEPS_PER_RUN,
+          maxRetriesPerStep: DEFAULT_MAX_RETRIES_PER_STEP,
         },
       };
 
