@@ -458,6 +458,23 @@ export class AgentExecutor {
     if (input && typeof input === "object" && !Array.isArray(input)) {
       return input as Record<string, unknown>;
     }
+
+    if (typeof input === "string") {
+      try {
+        const parsed = JSON.parse(input);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>;
+        }
+      } catch {
+        // Fall through to default
+      }
+    }
+
+    Logger.warn(
+      "AgentExecutor",
+      "Received invalid tool input, defaulting to empty object",
+      { input: String(input).slice(0, 100) },
+    );
     return {};
   }
 
@@ -502,10 +519,13 @@ export class AgentExecutor {
       return message.content;
     }
     if (Array.isArray(message.content)) {
-      return message.content
-        .filter((part): part is TextPart => part.type === "text")
-        .map((part) => part.text)
-        .join("");
+      let text = "";
+      for (const part of message.content) {
+        if (part.type === "text") {
+          text += part.text;
+        }
+      }
+      return text;
     }
     return "";
   }
