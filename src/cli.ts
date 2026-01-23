@@ -88,7 +88,7 @@ program
 program
   .command("setup")
   .description("Configure HackWriter for first-time use")
-  .action(setupCommand);
+  .action(() => setupCommand(false));
 
 async function runAgent(options: {
   command?: string;
@@ -145,8 +145,7 @@ async function runAgent(options: {
   
   if (!modelConfig) {
     throw ErrorFactory.configuration(
-      `Model "${modelName}" not found in configuration`,
-      `Available models: ${Object.keys(config.models).join(', ')}`
+      `Model "${modelName}" not found in configuration. Available models: ${Object.keys(config.models).join(', ')}`,
     );
   }
   

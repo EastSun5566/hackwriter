@@ -31,8 +31,6 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
     if (modelCount > 0) {
       console.log(chalk.green(`  ✓ ${modelCount} model(s) available\n`));
     }
-  } else {
-    console.log(chalk.yellow('No providers detected in environment\n'));
   }
 
   // 2. HackMD token (only if not in env)
@@ -42,23 +40,18 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
       message: 'Enter HackMD API token',
       mask: '*',
     });
-
     if (!hackmdToken) {
       console.log(chalk.red('\n❌ HackMD token is required'));
       process.exit(1);
     }
   } else {
-    console.log(chalk.green('Configuration:'));
     console.log(chalk.green('  ✓ HACKMD_API_TOKEN found\n'));
   }
 
   // 3. If no models available, prompt user to add LLM provider
   let llmApiKey: string | undefined;
   let llmProvider: 'anthropic' | 'openai' | undefined;
-
   if (Object.keys(models).length === 0) {
-    console.log(chalk.yellow('⚠️  No LLM providers configured\n'));
-    
     const providerChoice = await select({
       message: 'Select an LLM provider to configure:',
       choices: [
@@ -79,12 +72,10 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
 
     llmProvider = providerChoice as 'anthropic' | 'openai';
     const providerName = llmProvider === 'anthropic' ? 'Anthropic' : 'OpenAI';
-
     llmApiKey = await password({
       message: `Enter ${providerName} API key`,
       mask: '*',
     });
-
     if (!llmApiKey) {
       console.log(chalk.red(`\n❌ ${providerName} API key is required`));
       process.exit(1);
