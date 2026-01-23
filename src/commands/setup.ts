@@ -12,36 +12,25 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
   const models = await discoverModels(providers);
   const modelCount = Object.keys(models).length;
 
-  // Check if Ollama actually has models (not just detected as provider)
-  const hasOllamaModels = Object.values(models).some(m => m.provider === 'ollama');
-
-  if (Object.keys(providers).length > 0) {
-    console.log(chalk.green('Environment Detection:'));
+  if (Object.keys(providers).filter(p => p !== 'ollama').length > 0) {
     for (const [name, provider] of Object.entries(providers)) {
       if (provider.apiKey) {
         console.log(chalk.green(`  ✓ ${name.toUpperCase()}_API_KEY found`));
-      } else if (name === 'ollama' && hasOllamaModels) {
-        console.log(chalk.green('  ✓ Ollama detected'));
-      }
+      } 
     }
-
     if (modelCount > 0) {
       console.log(chalk.green(`  ✓ ${modelCount} model(s) available\n`));
     }
+  } else if (Object.values(models).some(m => m.provider === 'ollama')) {
+    console.log(chalk.green('  ✓ Ollama detected'));
+    console.log(chalk.green(`  ✓ ${modelCount} model(s) available\n`));
   } else {
     console.log(chalk.yellow('No providers detected in environment'));
-    console.log(chalk.gray('\nTo get started, set one of these environment variables:\n'));
-    console.log(chalk.cyan('  export ANTHROPIC_API_KEY=sk-ant-...'));
-    console.log(chalk.cyan('  export OPENAI_API_KEY=sk-...'));
-    console.log(chalk.gray('\nOr install Ollama locally:'));
-    console.log(chalk.cyan('  https://ollama.ai\n'));
   }
 
   // 2. HackMD token (only if not in env)
   let hackmdToken = process.env.HACKMD_API_TOKEN;
-
   if (!hackmdToken) {
-    console.log(chalk.yellow('Configuration needed:\n'));
     hackmdToken = await password({
       message: 'Enter HackMD API token',
       mask: '*',
