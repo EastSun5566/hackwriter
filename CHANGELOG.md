@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.10](https://github.com/EastSun566/hackwriter/compare/v0.0.9...v0.0.10) (2026-01-23)
+
+
+### Features
+
+* enhance setup command with LLM provider selection and improved environment detection ([26a2605](https://github.com/EastSun566/hackwriter/commit/26a26055b14c7a7d40372651d688c9147210d9b9))
+
 ### [0.0.9](https://github.com/EastSun566/hackwriter/compare/v0.0.8...v0.0.9) (2026-01-23)
 
 
