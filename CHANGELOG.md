@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.11](https://github.com/EastSun566/hackwriter/compare/v0.0.10...v0.0.11) (2026-01-23)
+
+
+### Bug Fixes
+
+* improve setup command behavior and streamline user prompts ([7e3e1af](https://github.com/EastSun566/hackwriter/commit/7e3e1afabe541db493fa3a3de9b6e56e018b919a))
+
 ### [0.0.10](https://github.com/EastSun566/hackwriter/compare/v0.0.9...v0.0.10) (2026-01-23)
 
 
