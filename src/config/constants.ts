@@ -29,6 +29,13 @@ export const DEFAULT_MAX_RETRY_DELAY_MS = 30000;
 export const DEFAULT_HACKMD_API_URL = 'https://api.hackmd.io/v1';
 export const DEFAULT_HACKMD_MCP_URL = 'https://mcp.hackmd.io/v1';
 
+// HackMD CLI compatibility - environment variable names
+export const HACKMD_CLI_TOKEN_ENV = 'HMD_API_ACCESS_TOKEN';
+export const HACKMD_CLI_ENDPOINT_ENV = 'HMD_API_ENDPOINT_URL';
+export const HACKWRITER_TOKEN_ENV = 'HACKMD_API_TOKEN';
+export const HACKWRITER_API_URL_ENV = 'HACKMD_API_URL';
+export const HACKWRITER_MCP_URL_ENV = 'HACKMD_MCP_URL';
+
 // Model defaults
 export const DEFAULT_MODEL = 'anthropic-claude-3-5-haiku-latest';
 

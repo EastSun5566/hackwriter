@@ -68,6 +68,16 @@ hackwriter  # Starts immediately!
 | `ANTHROPIC_API_KEY` | Anthropic API key (optional) |
 | `OPENAI_API_KEY` | OpenAI API key (optional) |
 | `HACKMD_API_TOKEN` | HackMD API token (required) |
+| `HACKMD_API_URL` | HackMD API URL (optional, default: https://api.hackmd.io/v1) |
+
+**HackMD CLI Compatibility** - Also supports HackMD CLI environment variables:
+
+```bash
+export HMD_API_ACCESS_TOKEN=your-token    # Same as HACKMD_API_TOKEN
+export HMD_API_ENDPOINT_URL=https://...   # Same as HACKMD_API_URL
+```
+
+> **Note:** If you're already using [HackMD CLI](https://github.com/hackmdio/hackmd-cli), HackWriter will automatically detect and use your existing `HMD_API_ACCESS_TOKEN` environment variable. No additional configuration needed!
 
 **Config File** - Override defaults with `~/.hackwriter/config.json`:
 

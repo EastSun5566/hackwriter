@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { ConfigurationLoader } from '../config/ConfigurationLoader.js';
 import type { Configuration } from '../config/Configuration.js';
 import { discoverProviders, discoverModels } from '../config/ProviderDiscovery.js';
+import { loadHackMDCLIConfig } from '../config/HackMDConfigLoader.js';
 import { DEFAULT_MAX_STEPS_PER_RUN, DEFAULT_MAX_RETRIES_PER_STEP } from '../config/constants.js';
 
 export async function setupCommand(isAutoTriggered = false): Promise<void> {
@@ -33,9 +34,24 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
     }
   }
 
-  // 2. HackMD token (only if not in env)
-  let hackmdToken = process.env.HACKMD_API_TOKEN;
+  // 2. HackMD token (check all sources)
+  // Priority: HackWriter env > HackMD CLI env > HackMD CLI config file
+  let hackmdToken = process.env.HACKMD_API_TOKEN ?? process.env.HMD_API_ACCESS_TOKEN;
+  let tokenSource: 'env-hackwriter' | 'env-cli' | 'config-cli' | 'prompt' | null = null;
+  
+  // Check HackMD CLI config file if no env var
   if (!hackmdToken) {
+    const hackmdCLIConfig = await loadHackMDCLIConfig();
+    if (hackmdCLIConfig?.accessToken) {
+      hackmdToken = hackmdCLIConfig.accessToken;
+      tokenSource = 'config-cli';
+    }
+  } else {
+    tokenSource = process.env.HACKMD_API_TOKEN ? 'env-hackwriter' : 'env-cli';
+  }
+  
+  if (!hackmdToken) {
+    console.log(chalk.yellow('Configuration needed:\n'));
     hackmdToken = await password({
       message: 'Enter HackMD API token',
       mask: '*',
@@ -44,8 +60,18 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
       console.log(chalk.red('\n❌ HackMD token is required'));
       process.exit(1);
     }
+    tokenSource = 'prompt';
   } else {
-    console.log(chalk.green('  ✓ HACKMD_API_TOKEN found\n'));
+    console.log(chalk.green('Configuration:'));
+    // Show which source was detected
+    if (tokenSource === 'env-hackwriter') {
+      console.log(chalk.green('  ✓ HACKMD_API_TOKEN found'));
+    } else if (tokenSource === 'env-cli') {
+      console.log(chalk.green('  ✓ HMD_API_ACCESS_TOKEN found (HackMD CLI compatible)'));
+    } else if (tokenSource === 'config-cli') {
+      console.log(chalk.green('  ✓ HackMD CLI config found (~/.hackmd/config.json)'));
+    }
+    console.log();
   }
 
   // 3. If no models available, prompt user to add LLM provider
@@ -84,31 +110,54 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
     console.log(chalk.green(`\n✓ ${providerName} API key configured`));
   }
 
-  // 4. Save configuration
-  const configToSave: Partial<Configuration> = {
-    services: {
-      hackmd: {
-        apiToken: hackmdToken,
+  // 4. Save configuration (only if token was entered via prompt)
+  if (tokenSource === 'prompt') {
+    const configToSave: Partial<Configuration> = {
+      services: {
+        hackmd: {
+          apiToken: hackmdToken,
+        },
       },
-    },
-    loopControl: {
-      maxStepsPerRun: DEFAULT_MAX_STEPS_PER_RUN,
-      maxRetriesPerStep: DEFAULT_MAX_RETRIES_PER_STEP,
-    },
-  };
-
-  // Add LLM provider if configured
-  if (llmProvider && llmApiKey) {
-    configToSave.providers = {
-      [llmProvider]: {
-        type: llmProvider,
-        apiKey: llmApiKey,
+      loopControl: {
+        maxStepsPerRun: DEFAULT_MAX_STEPS_PER_RUN,
+        maxRetriesPerStep: DEFAULT_MAX_RETRIES_PER_STEP,
       },
     };
-  }
 
-  await ConfigurationLoader.save(configToSave as Configuration);
-  console.log(chalk.green('\n✅ Configuration saved!\n'));
+    // Add LLM provider if configured
+    if (llmProvider && llmApiKey) {
+      configToSave.providers = {
+        [llmProvider]: {
+          type: llmProvider,
+          apiKey: llmApiKey,
+        },
+      };
+    }
+
+    await ConfigurationLoader.save(configToSave as Configuration);
+    console.log(chalk.green('\n✅ Configuration saved!\n'));
+  } else {
+    // Token from env or HackMD CLI config - only save LLM provider if configured
+    if (llmProvider && llmApiKey) {
+      const configToSave: Partial<Configuration> = {
+        providers: {
+          [llmProvider]: {
+            type: llmProvider,
+            apiKey: llmApiKey,
+          },
+        },
+        loopControl: {
+          maxStepsPerRun: DEFAULT_MAX_STEPS_PER_RUN,
+          maxRetriesPerStep: DEFAULT_MAX_RETRIES_PER_STEP,
+        },
+      };
+      
+      await ConfigurationLoader.save(configToSave as Configuration);
+      console.log(chalk.green('\n✅ Configuration saved!\n'));
+    } else {
+      console.log(chalk.green('\n✅ All set!\n'));
+    }
+  }
 
   if (isAutoTriggered) {
     console.log(chalk.cyan('🚀 Starting HackWriter...\n'));

@@ -4,6 +4,7 @@ import * as os from 'os';
 import type { Configuration } from './Configuration.js';
 import { safeValidateConfiguration } from './ConfigSchema.js';
 import { discoverProviders, discoverModels } from './ProviderDiscovery.js';
+import { loadHackMDCLIConfig } from './HackMDConfigLoader.js';
 import { ErrorFactory } from '../utils/ErrorTypes.js';
 import { Logger } from '../utils/Logger.js';
 import {
@@ -14,6 +15,11 @@ import {
   DEFAULT_MODEL,
   DEFAULT_MAX_STEPS_PER_RUN,
   DEFAULT_MAX_RETRIES_PER_STEP,
+  HACKMD_CLI_TOKEN_ENV,
+  HACKMD_CLI_ENDPOINT_ENV,
+  HACKWRITER_TOKEN_ENV,
+  HACKWRITER_API_URL_ENV,
+  HACKWRITER_MCP_URL_ENV,
 } from './constants.js';
 
 export class ConfigurationLoader {
@@ -62,10 +68,46 @@ export class ConfigurationLoader {
         Object.keys(models)[0] ??
         DEFAULT_MODEL;
 
-      // 5. Load HackMD config from env if not in config
-      const hackmdToken = userConfig.services?.hackmd?.apiToken ?? process.env.HACKMD_API_TOKEN;
-      const hackmdApiBaseUrl = userConfig.services?.hackmd?.apiBaseUrl ?? process.env.HACKMD_API_URL ?? DEFAULT_HACKMD_API_URL;
-      const hackmdMcpBaseUrl = userConfig.services?.hackmd?.mcpBaseUrl ?? process.env.HACKMD_MCP_URL ?? DEFAULT_HACKMD_MCP_URL;
+      // 5. Load HackMD config with priority order:
+      //    1. Environment variables (HackWriter)
+      //    2. Environment variables (HackMD CLI)
+      //    3. HackWriter config file
+      //    4. HackMD CLI config file
+      //    5. Default values
+      
+      // Load HackMD CLI config as fallback
+      const hackmdCLIConfig = await loadHackMDCLIConfig();
+      
+      const hackmdToken = 
+        process.env[HACKWRITER_TOKEN_ENV] ??      // Priority 1: HACKMD_API_TOKEN
+        process.env[HACKMD_CLI_TOKEN_ENV] ??      // Priority 2: HMD_API_ACCESS_TOKEN
+        userConfig.services?.hackmd?.apiToken ??  // Priority 3: HackWriter config
+        hackmdCLIConfig?.accessToken;             // Priority 4: HackMD CLI config
+      
+      const hackmdApiBaseUrl = 
+        process.env[HACKWRITER_API_URL_ENV] ??           // Priority 1: HACKMD_API_URL
+        process.env[HACKMD_CLI_ENDPOINT_ENV] ??          // Priority 2: HMD_API_ENDPOINT_URL
+        userConfig.services?.hackmd?.apiBaseUrl ??       // Priority 3: HackWriter config
+        hackmdCLIConfig?.hackmdAPIEndpointURL ??         // Priority 4: HackMD CLI config
+        DEFAULT_HACKMD_API_URL;                          // Priority 5: Default
+      
+      const hackmdMcpBaseUrl = 
+        process.env[HACKWRITER_MCP_URL_ENV] ??    // Priority 1: HACKMD_MCP_URL
+        userConfig.services?.hackmd?.mcpBaseUrl ??
+        DEFAULT_HACKMD_MCP_URL;
+      
+      // Log configuration source for debugging
+      if (hackmdToken) {
+        if (process.env[HACKWRITER_TOKEN_ENV]) {
+          Logger.debug('ConfigLoader', 'Using HackMD token from HACKMD_API_TOKEN');
+        } else if (process.env[HACKMD_CLI_TOKEN_ENV]) {
+          Logger.debug('ConfigLoader', 'Using HackMD token from HMD_API_ACCESS_TOKEN (HackMD CLI)');
+        } else if (userConfig.services?.hackmd?.apiToken) {
+          Logger.debug('ConfigLoader', 'Using HackMD token from HackWriter config');
+        } else if (hackmdCLIConfig?.accessToken) {
+          Logger.debug('ConfigLoader', 'Using HackMD token from HackMD CLI config (~/.hackmd/config.json)');
+        }
+      }
 
       const config: Configuration = {
         defaultModel,
