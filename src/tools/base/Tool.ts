@@ -1,7 +1,5 @@
 import type { JSONSchema7 } from "json-schema";
 
-export type ToolParams = Record<string, unknown>;
-
 export interface ToolResult {
   ok: boolean;
   output: string; // Human-readable text output

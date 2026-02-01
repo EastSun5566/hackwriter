@@ -35,25 +35,3 @@ export function createMockNote(overrides: Partial<any> = {}) {
     ...overrides,
   };
 }
-
-export function createMockTeam(overrides: Partial<any> = {}) {
-  return {
-    id: "team-id",
-    name: "Test Team",
-    path: "test-team",
-    logo: null,
-    description: "A test team",
-    ...overrides,
-  };
-}
-
-export function createMockUser(overrides: Partial<any> = {}) {
-  return {
-    id: "user-id",
-    name: "Test User",
-    email: "test@example.com",
-    userPath: "testuser",
-    photo: null,
-    ...overrides,
-  };
-}

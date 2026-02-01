@@ -4,13 +4,13 @@ import { z } from "zod";
  * Zod schemas for runtime configuration validation
  */
 
-export const HackMDConfigSchema = z.object({
+const HackMDConfigSchema = z.object({
   apiBaseUrl: z.url().optional(),
   mcpBaseUrl: z.url().optional(),
   apiToken: z.string().min(1, "API token is required"),
 });
 
-export const LLMProviderSchema = z.object({
+const LLMProviderSchema = z.object({
   type: z.enum(["anthropic", "openai", "ollama"]),
   apiKey: z.string().min(1, "API key is required").optional(),
   baseUrl: z.url().optional(),
@@ -18,7 +18,7 @@ export const LLMProviderSchema = z.object({
   projectId: z.string().optional(),
 });
 
-export const LLMModelSchema = z.object({
+const LLMModelSchema = z.object({
   provider: z.string().min(1, "Provider name is required"),
   model: z.string().min(1, "Model name is required"),
   maxContextSize: z
@@ -27,12 +27,12 @@ export const LLMModelSchema = z.object({
     .positive("Max context size must be positive"),
 });
 
-export const LoopControlSchema = z.object({
+const LoopControlSchema = z.object({
   maxStepsPerRun: z.number().int().positive().default(100),
   maxRetriesPerStep: z.number().int().nonnegative().default(3),
 });
 
-export const ConfigurationSchema = z.object({
+const ConfigurationSchema = z.object({
   defaultModel: z.string(),
   models: z.record(z.string(), LLMModelSchema),
   providers: z.record(z.string(), LLMProviderSchema),
@@ -44,16 +44,6 @@ export const ConfigurationSchema = z.object({
 
 // Infer TypeScript types from schemas
 export type ValidatedConfiguration = z.infer<typeof ConfigurationSchema>;
-export type ValidatedHackMDConfig = z.infer<typeof HackMDConfigSchema>;
-export type ValidatedLLMProvider = z.infer<typeof LLMProviderSchema>;
-export type ValidatedLLMModel = z.infer<typeof LLMModelSchema>;
-
-/**
- * Validate configuration object
- */
-export function validateConfiguration(data: unknown): ValidatedConfiguration {
-  return ConfigurationSchema.parse(data);
-}
 
 /**
  * Safely validate configuration with detailed error messages

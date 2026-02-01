@@ -1,8 +1,9 @@
 import { promises as fs } from 'fs';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { Anthropic } from '@anthropic-ai/sdk';
 import * as path from 'path';
 import * as os from 'os';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { ModelMessage } from 'ai';
+
 import { ConversationContext } from '../../src/agent/ConversationContext';
 
 describe('ConversationContext', () => {
@@ -43,7 +44,7 @@ describe('ConversationContext', () => {
 
   describe('message management', () => {
     it('should add single message', async () => {
-      const message: Anthropic.MessageParam = {
+      const message: ModelMessage = {
         role: 'user',
         content: 'Hello',
       };
@@ -55,7 +56,7 @@ describe('ConversationContext', () => {
     });
 
     it('should add multiple messages', async () => {
-      const messages: Anthropic.MessageParam[] = [
+      const messages: ModelMessage[] = [
         { role: 'user', content: 'Hello' },
         { role: 'assistant', content: 'Hi there!' },
       ];
@@ -214,7 +215,7 @@ describe('ConversationContext', () => {
     });
 
     it('should handle messages with complex content', async () => {
-      const message: Anthropic.MessageParam = {
+      const message: ModelMessage = {
         role: 'user',
         content: [
           { type: 'text', text: 'Hello' },

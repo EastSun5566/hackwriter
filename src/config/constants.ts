@@ -16,15 +16,6 @@ export const MAX_FILE_DISPLAY_SIZE = 1024 * 1024; // 1MB display limit
 // Display limits
 export const MAX_FILES_DISPLAY = 100; // Maximum files to display in list
 
-// Rate limiting defaults
-export const DEFAULT_RATE_LIMIT_REQUESTS = 10; // requests per window
-export const DEFAULT_RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
-
-// Retry defaults
-export const DEFAULT_MAX_RETRIES = 3;
-export const DEFAULT_RETRY_DELAY_MS = 1000;
-export const DEFAULT_MAX_RETRY_DELAY_MS = 30000;
-
 // HackMD API defaults
 export const DEFAULT_HACKMD_API_URL = 'https://api.hackmd.io/v1';
 export const DEFAULT_HACKMD_MCP_URL = 'https://mcp.hackmd.io/v1';

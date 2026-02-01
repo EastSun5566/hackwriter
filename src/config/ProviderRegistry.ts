@@ -5,7 +5,7 @@ export interface ModelDefinition {
   maxTokens?: number;
 }
 
-export interface ProviderDefinition {
+interface ProviderDefinition {
   type: 'anthropic' | 'openai' | 'ollama';
   envKey?: string;
   defaultBaseUrl?: string;
@@ -52,12 +52,4 @@ export const BUILT_IN_PROVIDERS: Record<string, ProviderDefinition> = {
   },
 };
 
-export function getProviderDefinition(
-  providerType: string
-): ProviderDefinition | undefined {
-  return BUILT_IN_PROVIDERS[providerType];
-}
 
-export function getAllProviderDefinitions(): Record<string, ProviderDefinition> {
-  return BUILT_IN_PROVIDERS;
-}

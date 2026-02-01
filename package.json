@@ -17,8 +17,10 @@
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint --fix",
+    "knip": "knip --fix",
     "test": "vitest run",
-    "lint": "eslint . --fix",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run knip",
     "prepublishOnly": "pnpm run build",
     "release": "pnpx standard-version && git push --follow-tags && pnpm publish"
   },
@@ -48,7 +50,6 @@
     "commander": "^14.0.2",
     "ollama-ai-provider-v2": "^3.0.1",
     "ora": "^9.0.0",
-    "uuid": "^13.0.0",
     "zod": "^4.1.13"
   },
   "devDependencies": {
@@ -58,6 +59,7 @@
     "@vitest/coverage-v8": "^4.0.13",
     "@vitest/ui": "^4.0.13",
     "eslint": "^9.39.1",
+    "knip": "^5.82.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.47.0",

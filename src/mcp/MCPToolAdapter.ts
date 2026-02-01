@@ -5,7 +5,7 @@ import { Logger } from "../utils/Logger.js";
 /**
  * Interface matching Tool abstract class for compatibility
  */
-export interface ToolLike {
+interface ToolLike {
   name: string;
   description: string;
   inputSchema: ToolSchema;
