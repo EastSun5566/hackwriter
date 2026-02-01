@@ -7,6 +7,7 @@ import { discoverProviders, discoverModels } from './ProviderDiscovery.js';
 import { loadHackMDCLIConfig } from './HackMDConfigLoader.js';
 import { ErrorFactory } from '../utils/ErrorTypes.js';
 import { Logger } from '../utils/Logger.js';
+import { SensitiveDataRedactor } from '../utils/SensitiveDataRedactor.js';
 import {
   CONFIG_DIR,
   CONFIG_FILE,
@@ -35,9 +36,12 @@ export class ConfigurationLoader {
       const discoveredProviders = discoverProviders();
       const discoveredModels = await discoverModels(discoveredProviders);
 
+      // Redact sensitive data before logging
+      const redactedProviders = SensitiveDataRedactor.redact(discoveredProviders);
       Logger.debug(
         'ConfigLoader',
-        `Discovered ${Object.keys(discoveredProviders).length} providers, ${Object.keys(discoveredModels).length} models`
+        `Discovered ${Object.keys(discoveredProviders).length} providers, ${Object.keys(discoveredModels).length} models`,
+        { providers: redactedProviders }
       );
 
       // 2. Load user config (if exists)

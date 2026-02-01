@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import type { ModelMessage } from "ai";
 import { Logger } from "../utils/Logger.js";
+import { BatchWriter } from "../utils/BatchWriter.js";
 
 type ContextRecord =
   | { type: "message"; data: ModelMessage }
@@ -13,10 +14,12 @@ export class ConversationContext {
   private checkpointCounter = 0;
   private storageFile: string;
   private isMemoryMode: boolean;
+  private batchWriter: BatchWriter;
 
   constructor(storageFile: string) {
     this.storageFile = storageFile;
     this.isMemoryMode = storageFile === ":memory:";
+    this.batchWriter = new BatchWriter(storageFile);
   }
 
   async loadFromDisk(): Promise<boolean> {
@@ -145,6 +148,20 @@ export class ConversationContext {
     if (this.isMemoryMode) {
       return;
     }
-    await fs.appendFile(this.storageFile, JSON.stringify(data) + "\n", "utf-8");
+    await this.batchWriter.write(JSON.stringify(data) + "\n");
+  }
+
+  /**
+   * Flush any pending writes to disk
+   */
+  async flush(): Promise<void> {
+    await this.batchWriter.flush();
+  }
+
+  /**
+   * Close the conversation context and flush remaining data
+   */
+  async close(): Promise<void> {
+    await this.batchWriter.close();
   }
 }

@@ -1,7 +1,8 @@
 import { promises as fs, type Stats } from 'node:fs';
-import { join, relative, dirname } from 'node:path';
+import { join, relative } from 'node:path';
 import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.js';
 import { MAX_FILES_DISPLAY } from '../../config/constants.js';
+import { PathValidator, SecurityError } from '../../utils/PathValidator.js';
 
 interface ListFilesParams {
   directoryPath: string;
@@ -33,22 +34,21 @@ export class ListFilesTool extends Tool<ListFilesParams> {
   };
 
   async call(params: ListFilesParams): Promise<ToolResult> {
-    // Validate directory path
-    if (!params.directoryPath || params.directoryPath.trim() === '') {
+    // Validate directory path using PathValidator
+    try {
+      PathValidator.validate(params.directoryPath);
+    } catch (error) {
+      if (error instanceof SecurityError) {
+        return this.error(
+          error.message,
+          `Security violation: ${error.violation}`,
+          'Security error',
+        );
+      }
       return this.error(
-        'Directory path cannot be empty',
-        'Directory path is required',
+        'Invalid directory path',
+        'Directory path validation failed',
         'Invalid path',
-      );
-    }
-
-    // Prevent path traversal attacks
-    const normalizedPath = dirname(params.directoryPath);
-    if (normalizedPath.includes('..')) {
-      return this.error(
-        'Path traversal is not allowed for security reasons',
-        'Security violation: path traversal detected',
-        'Security error',
       );
     }
 

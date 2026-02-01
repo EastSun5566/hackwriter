@@ -18,6 +18,7 @@ import { setupCommand } from "./commands/setup.js";
 import { buildLanguageModel } from "./agent/ModelFactory.js";
 import { Logger } from "./utils/Logger.js";
 import { ErrorFactory } from "./utils/ErrorTypes.js";
+import { SensitiveDataRedactor } from "./utils/SensitiveDataRedactor.js";
 import type { Agent } from "./agent/Agent.js";
 
 import {
@@ -58,6 +59,9 @@ program
   .option("-m, --model <name>", "LLM model to use")
   .action(async (options) => {
     try {
+      // Setup cleanup on exit
+      setupCleanupHandlers();
+      
       await runAgent(options);
     } catch (error) {
       // Handle AppError with user-friendly messages
@@ -297,6 +301,44 @@ function registerLocalHackMDTools(
   toolRegistry.register(new ExportNoteTool(hackmdClient));
 
   Logger.debug("CLI", "Registered local HackMD tools");
+}
+
+/**
+ * Setup cleanup handlers to clear sensitive data on exit
+ */
+function setupCleanupHandlers(): void {
+  const cleanup = () => {
+    Logger.debug("CLI", "Cleaning up sensitive data from memory");
+    
+    // Clear environment variables containing sensitive data
+    if (process.env.ANTHROPIC_API_KEY) {
+      SensitiveDataRedactor.clearMemory({ ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY });
+      delete process.env.ANTHROPIC_API_KEY;
+    }
+    if (process.env.OPENAI_API_KEY) {
+      SensitiveDataRedactor.clearMemory({ OPENAI_API_KEY: process.env.OPENAI_API_KEY });
+      delete process.env.OPENAI_API_KEY;
+    }
+    if (process.env.HACKMD_API_TOKEN) {
+      SensitiveDataRedactor.clearMemory({ HACKMD_API_TOKEN: process.env.HACKMD_API_TOKEN });
+      delete process.env.HACKMD_API_TOKEN;
+    }
+    if (process.env.HMD_API_ACCESS_TOKEN) {
+      SensitiveDataRedactor.clearMemory({ HMD_API_ACCESS_TOKEN: process.env.HMD_API_ACCESS_TOKEN });
+      delete process.env.HMD_API_ACCESS_TOKEN;
+    }
+  };
+
+  // Register cleanup handlers
+  process.on('exit', cleanup);
+  process.on('SIGINT', () => {
+    cleanup();
+    process.exit(0);
+  });
+  process.on('SIGTERM', () => {
+    cleanup();
+    process.exit(0);
+  });
 }
 
 program.parse();

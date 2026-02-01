@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { SensitiveDataRedactor } from './SensitiveDataRedactor.js';
 
 type LogLevel = 'silent' | 'info' | 'debug';
 
@@ -51,18 +52,28 @@ export class Logger {
       return;
     }
 
-    Logger.log(category, message, undefined, {
+    // Sanitize error message before logging
+    const sanitizedMessage = SensitiveDataRedactor.redactString(message);
+
+    Logger.log(category, sanitizedMessage, undefined, {
       category: chalk.red,
       message: chalk.red,
     });
 
     if (error !== undefined) {
       if (error instanceof Error) {
-        console.log(chalk.red(error.stack ?? error.message));
+        // Sanitize error stack and message
+        const sanitizedStack = SensitiveDataRedactor.redactString(error.stack ?? error.message);
+        console.log(chalk.red(sanitizedStack));
       } else if (typeof error === 'object' && error !== null) {
-        console.log(chalk.red(JSON.stringify(error, null, 2)));
+        // Redact sensitive fields from error objects
+        const redactedError = SensitiveDataRedactor.redact(error);
+        console.log(chalk.red(JSON.stringify(redactedError, null, 2)));
       } else if (typeof error === 'string' || typeof error === 'number' || typeof error === 'boolean') {
-        console.log(chalk.red(String(error)));
+        const sanitizedError = typeof error === 'string' 
+          ? SensitiveDataRedactor.redactString(error)
+          : String(error);
+        console.log(chalk.red(sanitizedError));
       }
     }
   }

@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { RateLimiter } from '../../src/utils/RateLimiter.js';
 
 describe('RateLimiter', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('should allow requests within limit', async () => {
@@ -19,18 +19,18 @@ describe('RateLimiter', () => {
   });
 
   it('should wait when limit is exceeded', async () => {
-    const limiter = new RateLimiter(2, 1000);
+    const limiter = new RateLimiter(2, 500); // Shorter window for faster test
 
+    const start = Date.now();
     await limiter.acquire();
     await limiter.acquire();
 
-    // Third request should wait
-    const promise = limiter.acquire();
+    // Third request should wait ~500ms
+    await limiter.acquire();
+    const elapsed = Date.now() - start;
     
-    // Fast-forward time
-    vi.advanceTimersByTime(1000);
-    
-    await promise;
+    // Should have waited approximately 500ms
+    expect(elapsed).toBeGreaterThanOrEqual(400); // Allow some margin
     
     const stats = limiter.getStats();
     expect(stats.current).toBe(1);
@@ -62,13 +62,13 @@ describe('RateLimiter', () => {
   });
 
   it('should clean up old requests', async () => {
-    const limiter = new RateLimiter(3, 1000);
+    const limiter = new RateLimiter(3, 100); // Short window
 
     await limiter.acquire();
     await limiter.acquire();
 
-    // Fast-forward past window
-    vi.advanceTimersByTime(1100);
+    // Wait for window to expire
+    await new Promise(resolve => setTimeout(resolve, 150));
 
     await limiter.acquire();
 

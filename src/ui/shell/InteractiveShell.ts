@@ -9,6 +9,7 @@ import { OutputRenderer } from "./OutputRenderer.js";
 import { CommandRegistry } from "./CommandRegistry.js";
 import { MessageBus } from "../../messaging/MessageBus.js";
 import { Logger } from "../../utils/Logger.js";
+import type { Disposable } from "../../utils/ResourceManager.js";
 
 export interface ModelContext {
   currentModelName: string;
@@ -18,7 +19,7 @@ export interface ModelContext {
   systemPrompt: string;
 }
 
-export class InteractiveShell {
+export class InteractiveShell implements Disposable {
   private executor: AgentExecutor;
   private renderer: OutputRenderer;
   private commandRegistry: CommandRegistry;
@@ -193,5 +194,16 @@ export class InteractiveShell {
     console.log(chalk.bold.cyan("\n📝 HackWriter\n"));
     console.log(chalk.gray("Writing agent for HackMD"));
     console.log(chalk.gray("Type /help for commands or /exit to quit\n"));
+  }
+
+  /**
+   * Dispose of resources (implements Disposable interface)
+   */
+  dispose(): void {
+    Logger.debug("InteractiveShell", "Disposing resources");
+    if (!this.isClosed) {
+      this.rl.close();
+      this.isClosed = true;
+    }
   }
 }

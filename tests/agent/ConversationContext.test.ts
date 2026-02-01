@@ -68,6 +68,7 @@ describe('ConversationContext', () => {
 
     it('should persist messages to disk', async () => {
       await context.addMessage({ role: 'user', content: 'Test' });
+      await context.flush(); // Wait for batch writer to flush
 
       const fileContent = await fs.readFile(tempFile, 'utf-8');
       expect(fileContent).toContain('"role":"user"');
@@ -89,6 +90,7 @@ describe('ConversationContext', () => {
 
     it('should persist checkpoints to disk', async () => {
       await context.createCheckpoint();
+      await context.flush(); // Wait for batch writer to flush
 
       const fileContent = await fs.readFile(tempFile, 'utf-8');
       expect(fileContent).toContain('"type":"checkpoint"');
@@ -102,6 +104,7 @@ describe('ConversationContext', () => {
       await context.addMessage({ role: 'user', content: 'Message 2' });
       await context.createCheckpoint(); // 2
       await context.addMessage({ role: 'user', content: 'Message 3' });
+      await context.flush(); // Wait for batch writer to flush
 
       expect(context.getHistory()).toHaveLength(3);
 
@@ -114,6 +117,7 @@ describe('ConversationContext', () => {
     it('should create backup when reverting', async () => {
       await context.createCheckpoint();
       await context.addMessage({ role: 'user', content: 'Test' });
+      await context.flush(); // Wait for batch writer to flush
       
       await context.revertToCheckpoint(0);
 
@@ -136,6 +140,7 @@ describe('ConversationContext', () => {
 
     it('should persist token count to disk', async () => {
       await context.setTokenCount(500);
+      await context.flush(); // Wait for batch writer to flush
 
       const fileContent = await fs.readFile(tempFile, 'utf-8');
       expect(fileContent).toContain('"type":"usage"');
@@ -190,6 +195,7 @@ describe('ConversationContext', () => {
       await context.addMessage({ role: 'user', content: 'First' });
       await context.addMessage({ role: 'assistant', content: 'Second' });
       await context.addMessage({ role: 'user', content: 'Third' });
+      await context.flush(); // Wait for batch writer to flush
 
       const newContext = new ConversationContext(tempFile);
       await newContext.loadFromDisk();

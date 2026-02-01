@@ -4,16 +4,19 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createOllama } from "ollama-ai-provider-v2";
 import type { LLMProvider } from "../config/Configuration.js";
 import { Logger } from "../utils/Logger.js";
+import { SensitiveDataRedactor } from "../utils/SensitiveDataRedactor.js";
 
 export function buildLanguageModel(
   provider: LLMProvider,
   modelId: string,
 ): LanguageModel {
+  // Redact sensitive data before logging
+  const redactedProvider = SensitiveDataRedactor.redact(provider);
   Logger.debug("ModelFactory", "Building language model", {
     providerType: provider.type,
     modelId,
     hasApiKey: !!provider.apiKey,
-    baseUrl: provider.baseUrl,
+    provider: redactedProvider,
   });
 
   switch (provider.type) {

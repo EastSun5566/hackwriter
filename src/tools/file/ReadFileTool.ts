@@ -1,7 +1,7 @@
 import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.js';
 import { promises as fs } from 'node:fs';
-import { dirname } from 'node:path';
 import { MAX_FILE_DISPLAY_SIZE } from '../../config/constants.js';
+import { PathValidator, SecurityError } from '../../utils/PathValidator.js';
 
 interface ReadFileParams {
   filePath: string;
@@ -23,22 +23,21 @@ export class ReadFileTool extends Tool<ReadFileParams> {
   };
 
   async call(params: ReadFileParams): Promise<ToolResult> {
-    // Validate file path
-    if (!params.filePath || params.filePath.trim() === '') {
+    // Validate file path using PathValidator
+    try {
+      PathValidator.validate(params.filePath);
+    } catch (error) {
+      if (error instanceof SecurityError) {
+        return this.error(
+          error.message,
+          `Security violation: ${error.violation}`,
+          'Security error',
+        );
+      }
       return this.error(
-        'File path cannot be empty',
-        'File path is required',
+        'Invalid file path',
+        'File path validation failed',
         'Invalid path',
-      );
-    }
-
-    // Prevent path traversal attacks
-    const normalizedPath = dirname(params.filePath);
-    if (normalizedPath.includes('..')) {
-      return this.error(
-        'Path traversal is not allowed for security reasons',
-        'Security violation: path traversal detected',
-        'Security error',
       );
     }
 

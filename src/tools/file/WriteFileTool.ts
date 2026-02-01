@@ -3,6 +3,7 @@ import type { ApprovalManager } from '../../agent/ApprovalManager.js';
 import { promises as fs } from 'node:fs';
 import { dirname } from 'node:path';
 import { MAX_FILE_SIZE } from '../../config/constants.js';
+import { PathValidator, SecurityError } from '../../utils/PathValidator.js';
 
 interface WriteFileParams {
   filePath: string;
@@ -38,22 +39,21 @@ export class WriteFileTool extends Tool<WriteFileParams> {
   }
 
   async call(params: WriteFileParams): Promise<ToolResult> {
-    // Validate file path
-    if (!params.filePath || params.filePath.trim() === '') {
+    // Validate file path using PathValidator
+    try {
+      PathValidator.validate(params.filePath);
+    } catch (error) {
+      if (error instanceof SecurityError) {
+        return this.error(
+          error.message,
+          `Security violation: ${error.violation}`,
+          'Security error',
+        );
+      }
       return this.error(
-        'File path cannot be empty',
-        'File path is required',
+        'Invalid file path',
+        'File path validation failed',
         'Invalid path',
-      );
-    }
-
-    // Prevent path traversal attacks
-    const normalizedPath = dirname(params.filePath);
-    if (normalizedPath.includes('..')) {
-      return this.error(
-        'Path traversal is not allowed for security reasons',
-        'Security violation: path traversal detected',
-        'Security error',
       );
     }
 

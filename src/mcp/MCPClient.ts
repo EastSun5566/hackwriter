@@ -1,15 +1,14 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { Logger } from "../utils/Logger.js";
-import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { AsyncPackageLoader } from "../utils/AsyncPackageLoader.js";
+import type { Disposable } from "../utils/ResourceManager.js";
+import { RetryPolicy } from "../utils/RetryPolicy.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const packageJson = JSON.parse(
-  readFileSync(join(__dirname, "../../package.json"), "utf-8")
-) as { version: string };
 
 export interface MCPClientConfig {
   serverUrl: string;
@@ -27,18 +26,26 @@ export interface MCPToolCallResult {
   isError?: boolean;
 }
 
-export class MCPClient {
+export class MCPClient implements Disposable {
   private client: Client | null = null;
   private transport: StreamableHTTPClientTransport | null = null;
   private config: MCPClientConfig;
   private connected = false;
+  private packageVersion = "unknown";
+  private retryPolicy: RetryPolicy;
 
   constructor(config: MCPClientConfig) {
     this.config = config;
+    this.retryPolicy = new RetryPolicy({
+      maxRetries: 3,
+      initialDelayMs: 1000,
+      maxDelayMs: 10000,
+      backoffMultiplier: 2,
+    });
   }
 
   /**
-   * Connect to MCP server
+   * Connect to MCP server with retry logic
    */
   async connect(): Promise<void> {
     if (this.connected) {
@@ -46,7 +53,21 @@ export class MCPClient {
       return;
     }
 
+    await this.retryPolicy.execute(async () => {
+      await this.connectInternal();
+    });
+  }
+
+  /**
+   * Internal connection logic (called by retry policy)
+   */
+  private async connectInternal(): Promise<void> {
     Logger.debug("MCPClient", `Connecting to ${this.config.serverUrl}`);
+
+    // Load package.json asynchronously
+    const packagePath = join(__dirname, "../../package.json");
+    const packageJson = await AsyncPackageLoader.load(packagePath);
+    this.packageVersion = packageJson.version;
 
     this.transport = new StreamableHTTPClientTransport(
       new URL(this.config.serverUrl),
@@ -62,17 +83,37 @@ export class MCPClient {
     this.client = new Client(
       {
         name: "hackwriter-cli",
-        version: packageJson.version,
+        version: this.packageVersion,
       },
       {
         capabilities: {},
       }
     );
 
-    await this.client.connect(this.transport);
-    this.connected = true;
-
-    Logger.info("MCPClient", "Connected to MCP server");
+    try {
+      await this.client.connect(this.transport);
+      this.connected = true;
+      Logger.info("MCPClient", "Connected to MCP server");
+    } catch (error) {
+      // Clean up partial state on failure
+      if (this.client) {
+        try {
+          await this.client.close();
+        } catch {
+          // Ignore cleanup errors
+        }
+        this.client = null;
+      }
+      if (this.transport) {
+        try {
+          await this.transport.close();
+        } catch {
+          // Ignore cleanup errors
+        }
+        this.transport = null;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -176,5 +217,13 @@ export class MCPClient {
       .join("\n");
 
     return textContents;
+  }
+
+  /**
+   * Dispose of resources (implements Disposable interface)
+   */
+  async dispose(): Promise<void> {
+    Logger.debug("MCPClient", "Disposing resources");
+    await this.disconnect();
   }
 }

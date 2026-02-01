@@ -50,7 +50,12 @@ export async function discoverOpenAIModels(apiKey: string): Promise<ModelDefinit
       const order = ['gpt-4o', 'gpt-4', 'gpt-3.5', 'o1', 'o3'];
       const aIndex = order.findIndex(prefix => a.id.startsWith(prefix));
       const bIndex = order.findIndex(prefix => b.id.startsWith(prefix));
-      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+      
+      // Use 999 as default priority for unknown models (push to end)
+      const aPriority = aIndex === -1 ? 999 : aIndex;
+      const bPriority = bIndex === -1 ? 999 : bIndex;
+      
+      return aPriority - bPriority;
     });
   } catch (error) {
     Logger.debug('OpenAIDiscovery', `Failed to discover models: ${String(error)}`);
