@@ -28,7 +28,7 @@ export const HACKWRITER_API_URL_ENV = 'HACKMD_API_URL';
 export const HACKWRITER_MCP_URL_ENV = 'HACKMD_MCP_URL';
 
 // Model defaults
-export const DEFAULT_MODEL = 'anthropic-claude-3-5-haiku-latest';
+export const DEFAULT_MODEL = 'anthropic-claude-3-5-haiku-20241022';
 
 // Loop control defaults
 export const DEFAULT_MAX_STEPS_PER_RUN = 100;
