@@ -4,7 +4,7 @@
 
 ## Quick Start
 
-```bash
+```sh
 npx hackwriter
 ```
 
@@ -16,40 +16,26 @@ If you don't have API keys configured, the setup wizard will guide you through i
 
 ## Installation
 
-**One-time use**:
-```bash
-npx hackwriter
-```
-
-**Global install**:
-```bash
+```sh
 npm i -g hackwriter
 
 hackwriter
 ```
 
----
-
 ## Features
 
-✅ **Zero-Config** - detected existing environment variables
-✅ **Multi-Provider** - Anthropic, OpenAI, Ollama (auto-detected)
-✅ **Model Switching** - Switch models on-the-fly with `/model`
-✅ **Session Persistence** - Resume your work anytime
-✅ **Smart Approvals** - Confirms destructive actions
-
-**HackMD Operations**:
-- List, read, create, update, delete notes
-- Personal & team notes support
-- Search and export notes
-
----
+- **Zero-Config** - detected existing environment variables
+- **Multi-Provider** - Anthropic, OpenAI, Ollama (auto-detected)
+- **Model Switching** - Switch models on-the-fly with `/model`
+- **Session Persistence** - Resume your work anytime
+- **Smart Approvals** - Confirms destructive actions
 
 ## Configuration
 
 ### Automatic Setup
 
 Run `hackwriter` and follow the setup wizard. It will ask for:
+
 - LLM provider (Anthropic, OpenAI, or Ollama) API key (if needed)
 - HackMD API token
 
@@ -63,12 +49,12 @@ export HACKMD_API_TOKEN=your-token
 hackwriter  # Starts immediately!
 ```
 
-| Variable | Description |
-|----------|-------------|
-| `ANTHROPIC_API_KEY` | Anthropic API key (optional) |
-| `OPENAI_API_KEY` | OpenAI API key (optional) |
-| `HACKMD_API_TOKEN` | HackMD API token (required) |
-| `HACKMD_API_URL` | HackMD API URL (optional, default: https://api.hackmd.io/v1) |
+| Variable            | Description                                                    |
+| ------------------- | -------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY` | Anthropic API key (optional)                                   |
+| `OPENAI_API_KEY`    | OpenAI API key (optional)                                      |
+| `HACKMD_API_TOKEN`  | HackMD API token (required)                                    |
+| `HACKMD_API_URL`    | HackMD API URL (optional, default: <https://api.hackmd.io/v1>) |
 
 **HackMD CLI Compatibility** - Also supports HackMD CLI environment variables:
 
@@ -135,52 +121,26 @@ hackwriter --yolo             # Skip all confirmations
 ## Supported Providers
 
 ### Anthropic
+
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-xxx
 ```
+
 Models: Claude 3.5 Haiku, Sonnet, Opus 4
 
 ### OpenAI
+
 ```bash
 export OPENAI_API_KEY=sk-xxx
 ```
+
 Models: GPT-4o, GPT-4o-mini, o1
 
 ### Ollama (Local)
+
 ```bash
 # Ollama auto-detected if running
 ollama serve
 ```
+
 All local models automatically discovered
-
----
-
-## Advanced
-
-### Custom Ollama Models
-
-```json
-{
-  "models": {
-    "llama": {
-      "provider": "ollama",
-      "model": "llama3.1:70b",
-      "maxContextSize": 128000
-    }
-  },
-  "providers": {
-    "ollama": {
-      "type": "ollama",
-      "baseUrl": "http://localhost:11434/api"
-    }
-  }
-}
-```
-
-### Model Management
-
-```bash
-/model                        # Show all available models
-/model anthropic-*            # List Anthropic models
-/model ollama-llama3.1        # Switch to specific model
-```
