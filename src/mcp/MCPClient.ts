@@ -69,9 +69,27 @@ export class MCPClient implements Disposable {
     const packageJson = await AsyncPackageLoader.load(packagePath);
     this.packageVersion = packageJson.version;
 
+    // Create a custom fetch function that ensures Authorization header is included in all requests
+    const customFetch = async (url: string | URL, init?: RequestInit): Promise<Response> => {
+      const headers = new Headers(init?.headers);
+      
+      // Always include the Authorization header if not already present
+      if (!headers.has('Authorization')) {
+        headers.set('Authorization', `Bearer ${this.config.apiToken}`);
+      }
+      
+      Logger.debug("MCPClient", `Fetching ${url} with headers: ${JSON.stringify(Object.fromEntries(headers.entries()))}`);
+      
+      return fetch(url, {
+        ...init,
+        headers,
+      });
+    };
+
     this.transport = new StreamableHTTPClientTransport(
       new URL(this.config.serverUrl),
       {
+        fetch: customFetch,
         requestInit: {
           headers: {
             Authorization: `Bearer ${this.config.apiToken}`,
