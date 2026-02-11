@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.18](https://github.com/EastSun566/hackwriter/compare/v0.0.17...v0.0.18) (2026-02-11)
+
+
+### Bug Fixes
+
+* discover and handle Ollama models when setup ([660d422](https://github.com/EastSun566/hackwriter/commit/660d4229fa48f7f9271d6141ece4b2304283ccc5))
+
 ### [0.0.17](https://github.com/EastSun566/hackwriter/compare/v0.0.16...v0.0.17) (2026-02-11)
 
 
