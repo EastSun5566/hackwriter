@@ -33,6 +33,7 @@ export class MCPClient implements Disposable {
   private connected = false;
   private packageVersion = "unknown";
   private retryPolicy: RetryPolicy;
+  private sessionEstablished = false; // Track session state across retries
 
   constructor(config: MCPClientConfig) {
     this.config = config;
@@ -63,6 +64,9 @@ export class MCPClient implements Disposable {
    */
   private async connectInternal(): Promise<void> {
     Logger.debug("MCPClient", `Connecting to ${this.config.serverUrl}`);
+    
+    // Reset session state for new connection attempt
+    this.sessionEstablished = false;
 
     // Load package.json asynchronously
     const packagePath = join(__dirname, "../../package.json");
@@ -71,7 +75,6 @@ export class MCPClient implements Disposable {
 
     // Create a custom fetch function that ensures Authorization header is included in all requests
     // Also handles server-side race conditions with session management
-    let sessionEstablished = false;
     const customFetch = async (url: string | URL, init?: RequestInit): Promise<Response> => {
       const headers = new Headers(init?.headers);
       
@@ -96,11 +99,11 @@ export class MCPClient implements Disposable {
             const body = await clonedResponse.json() as { error?: { message?: string } };
             
             // Detect "Invalid session" error on first request after session creation
-            if (body?.error?.message?.includes('Invalid session') && headers.has('mcp-session-id') && !sessionEstablished) {
+            if (body?.error?.message?.includes('Invalid session') && headers.has('mcp-session-id') && !this.sessionEstablished) {
               Logger.debug("MCPClient", "Detected session race condition, adding delay and retrying...");
               
-              // Wait for server to fully establish session (100ms should be enough)
-              await new Promise(resolve => setTimeout(resolve, 100));
+              // Wait for server to fully establish session (300ms to be safe)
+              await new Promise(resolve => setTimeout(resolve, 300));
               
               // Retry the request
               const retryResponse = await fetch(url, {
@@ -109,7 +112,7 @@ export class MCPClient implements Disposable {
               });
               
               if (retryResponse.ok) {
-                sessionEstablished = true;
+                this.sessionEstablished = true;
                 Logger.debug("MCPClient", "Session established successfully after retry");
               }
               
@@ -124,7 +127,7 @@ export class MCPClient implements Disposable {
       
       // Mark session as established after first successful request with session ID
       if (response.ok && headers.has('mcp-session-id')) {
-        sessionEstablished = true;
+        this.sessionEstablished = true;
       }
       
       return response;

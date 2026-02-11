@@ -67,9 +67,10 @@ export class ConfigurationLoader {
       const models = { ...discoveredModels, ...(userConfig.models ?? {}) };
 
       // 4. Determine default model
+      // Priority: user config > DEFAULT_MODEL constant > first discovered model
       const defaultModel =
         userConfig.defaultModel ??
-        Object.keys(models)[0] ??
+        (DEFAULT_MODEL in models ? DEFAULT_MODEL : Object.keys(models)[0]) ??
         DEFAULT_MODEL;
 
       // 5. Load HackMD config with priority order:
