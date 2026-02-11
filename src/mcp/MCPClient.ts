@@ -70,6 +70,8 @@ export class MCPClient implements Disposable {
     this.packageVersion = packageJson.version;
 
     // Create a custom fetch function that ensures Authorization header is included in all requests
+    // Also handles server-side race conditions with session management
+    let sessionEstablished = false;
     const customFetch = async (url: string | URL, init?: RequestInit): Promise<Response> => {
       const headers = new Headers(init?.headers);
       
@@ -80,10 +82,52 @@ export class MCPClient implements Disposable {
       
       Logger.debug("MCPClient", `Fetching ${url.toString()} with headers: ${JSON.stringify(Object.fromEntries(headers.entries()))}`);
       
-      return fetch(url, {
+      const response = await fetch(url, {
         ...init,
         headers,
       });
+      
+      // Check for session-related errors (HackMD MCP server race condition workaround)
+      if (!response.ok && init?.method === 'POST') {
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('application/json')) {
+          try {
+            const clonedResponse = response.clone();
+            const body = await clonedResponse.json() as { error?: { message?: string } };
+            
+            // Detect "Invalid session" error on first request after session creation
+            if (body?.error?.message?.includes('Invalid session') && headers.has('mcp-session-id') && !sessionEstablished) {
+              Logger.debug("MCPClient", "Detected session race condition, adding delay and retrying...");
+              
+              // Wait for server to fully establish session (100ms should be enough)
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+              // Retry the request
+              const retryResponse = await fetch(url, {
+                ...init,
+                headers,
+              });
+              
+              if (retryResponse.ok) {
+                sessionEstablished = true;
+                Logger.debug("MCPClient", "Session established successfully after retry");
+              }
+              
+              return retryResponse;
+            }
+          } catch {
+            // If we can't parse the error, just return the original response
+            Logger.debug("MCPClient", "Could not parse error response");
+          }
+        }
+      }
+      
+      // Mark session as established after first successful request with session ID
+      if (response.ok && headers.has('mcp-session-id')) {
+        sessionEstablished = true;
+      }
+      
+      return response;
     };
 
     this.transport = new StreamableHTTPClientTransport(
