@@ -18,7 +18,7 @@ export const MAX_FILES_DISPLAY = 100; // Maximum files to display in list
 
 // HackMD API defaults
 export const DEFAULT_HACKMD_API_URL = 'https://api.hackmd.io/v1';
-export const DEFAULT_HACKMD_MCP_URL = 'https://mcp.hackmd.io/v1';
+export const DEFAULT_HACKMD_MCP_URL = 'https://mcp.hackmd.io';
 
 // HackMD CLI compatibility - environment variable names
 export const HACKMD_CLI_TOKEN_ENV = 'HMD_API_ACCESS_TOKEN';
