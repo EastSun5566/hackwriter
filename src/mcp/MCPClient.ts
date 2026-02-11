@@ -78,7 +78,7 @@ export class MCPClient implements Disposable {
         headers.set('Authorization', `Bearer ${this.config.apiToken}`);
       }
       
-      Logger.debug("MCPClient", `Fetching ${url} with headers: ${JSON.stringify(Object.fromEntries(headers.entries()))}`);
+      Logger.debug("MCPClient", `Fetching ${url.toString()} with headers: ${JSON.stringify(Object.fromEntries(headers.entries()))}`);
       
       return fetch(url, {
         ...init,
