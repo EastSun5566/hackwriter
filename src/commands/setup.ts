@@ -88,26 +88,56 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
     });
 
     if (providerChoice === 'skip') {
-      console.log(chalk.yellow('\n⚠️  Skipping LLM configuration'));
-      console.log(chalk.gray('To use HackWriter, you need to either:'));
-      console.log(chalk.cyan('  1. Install and run Ollama: https://ollama.ai'));
-      console.log(chalk.cyan('  2. Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable'));
-      console.log(chalk.cyan('  3. Run "hackwriter setup" again to configure\n'));
-      process.exit(0);
-    }
+      console.log(chalk.cyan('\n🔍 Checking for Ollama...'));
+      
+      // Try to discover Ollama models
+      const { discoverOllamaModels } = await import('../config/OllamaDiscovery.js');
+      const ollamaModels = await discoverOllamaModels();
+      
+      if (ollamaModels.length === 0) {
+        console.log(chalk.red('\n❌ Ollama is not running or no models are installed'));
+        console.log(chalk.gray('To use Ollama with HackWriter:'));
+        console.log(chalk.cyan('  1. Install Ollama: https://ollama.ai'));
+        console.log(chalk.cyan('  2. Run: ollama pull llama3.2'));
+        console.log(chalk.cyan('  3. Start Ollama service\n'));
+        console.log(chalk.gray('Alternatively:'));
+        console.log(chalk.cyan('  - Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable'));
+        console.log(chalk.cyan('  - Run "hackwriter setup" again to configure\n'));
+        process.exit(1);
+      }
+      
+      console.log(chalk.green(`✓ Found ${ollamaModels.length} Ollama model(s):`));
+      ollamaModels.slice(0, 5).forEach(model => {
+        console.log(chalk.gray(`  - ${model.name}`));
+      });
+      if (ollamaModels.length > 5) {
+        console.log(chalk.gray(`  ... and ${ollamaModels.length - 5} more`));
+      }
+      console.log();
+      
+      // Update models object with discovered Ollama models (convert ModelDefinition to LLMModel)
+      for (const modelDef of ollamaModels) {
+        const modelName = `ollama-${modelDef.id}`;
+        models[modelName] = {
+          provider: 'ollama',
+          model: modelDef.id,
+          maxContextSize: modelDef.contextWindow,
+        };
+      }
+    } else {
+      llmProvider = providerChoice as 'anthropic' | 'openai';
+      const providerName = llmProvider === 'anthropic' ? 'Anthropic' : 'OpenAI';
+      llmApiKey = await password({
+        message: `Enter ${providerName} API key`,
+        mask: '*',
+      });
+      if (!llmApiKey) {
+        console.log(chalk.red(`\n❌ ${providerName} API key is required`));
+        process.exit(1);
+      }
 
-    llmProvider = providerChoice as 'anthropic' | 'openai';
-    const providerName = llmProvider === 'anthropic' ? 'Anthropic' : 'OpenAI';
-    llmApiKey = await password({
-      message: `Enter ${providerName} API key`,
-      mask: '*',
-    });
-    if (!llmApiKey) {
-      console.log(chalk.red(`\n❌ ${providerName} API key is required`));
-      process.exit(1);
+      console.log(chalk.green(`\n✓ ${providerName} API key configured`));
     }
-
-    console.log(chalk.green(`\n✓ ${providerName} API key configured`));
   }
 
   // 4. Save configuration (only if token was entered via prompt)
