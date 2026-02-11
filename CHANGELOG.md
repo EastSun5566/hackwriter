@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.17](https://github.com/EastSun566/hackwriter/compare/v0.0.16...v0.0.17) (2026-02-11)
+
+
+### Bug Fixes
+
+* improve session management ([64ba6c6](https://github.com/EastSun566/hackwriter/commit/64ba6c6bb576a7ffa63dce09b0100cf095bc9e57))
+
 ### [0.0.16](https://github.com/EastSun566/hackwriter/compare/v0.0.15...v0.0.16) (2026-02-11)
 
 
