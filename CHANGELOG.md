@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.16](https://github.com/EastSun566/hackwriter/compare/v0.0.15...v0.0.16) (2026-02-11)
+
+
+### Bug Fixes
+
+* enhance custom fetch to handle session race conditions ([ea6eeb0](https://github.com/EastSun566/hackwriter/commit/ea6eeb02d23e8fbfd383ef557ee84262f5cd688f))
+* lint error ([f826602](https://github.com/EastSun566/hackwriter/commit/f82660221ef7b734a735d6934061b8861531d9d7))
+
 ### [0.0.15](https://github.com/EastSun566/hackwriter/compare/v0.0.14...v0.0.15) (2026-02-11)
 
 
