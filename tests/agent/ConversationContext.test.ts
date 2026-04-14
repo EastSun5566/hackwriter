@@ -191,6 +191,7 @@ describe('ConversationContext', () => {
       // Should succeed and skip the corrupted line
       expect(loaded).toBe(true);
       expect(newContext.getHistory()).toHaveLength(1);
+      expect(newContext.getHistory()[0].content).toBe('Valid');
     });
 
     it('should preserve order when loading', async () => {
