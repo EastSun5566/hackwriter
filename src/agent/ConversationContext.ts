@@ -1,15 +1,18 @@
 import { promises as fs } from "fs";
-import type { ModelMessage } from "ai";
+import type { Message } from "@mariozechner/pi-ai";
 import { Logger } from "../utils/Logger.js";
 import { BatchWriter } from "../utils/BatchWriter.js";
 
+/** The persisted message type for conversation history. */
+export type AgentMessage = Message;
+
 type ContextRecord =
-  | { type: "message"; data: ModelMessage }
+  | { type: "message"; data: AgentMessage }
   | { type: "checkpoint"; id: number }
   | { type: "usage"; tokenCount: number };
 
 export class ConversationContext {
-  private messages: ModelMessage[] = [];
+  private messages: AgentMessage[] = [];
   private _tokenCount = 0;
   private checkpointCounter = 0;
   private storageFile: string;
@@ -76,7 +79,7 @@ export class ConversationContext {
     return checkpointId;
   }
 
-  async addMessage(message: ModelMessage | ModelMessage[]): Promise<void> {
+  async addMessage(message: AgentMessage | AgentMessage[]): Promise<void> {
     const msgs = Array.isArray(message) ? message : [message];
     this.messages.push(...msgs);
 
@@ -132,7 +135,7 @@ export class ConversationContext {
     }
   }
 
-  getHistory(): ModelMessage[] {
+  getHistory(): AgentMessage[] {
     return this.messages;
   }
 

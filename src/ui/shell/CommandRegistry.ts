@@ -184,7 +184,7 @@ export class CommandRegistry {
 
     const modelConfig = config.models[modelName];
     const providerConfig = config.providers[modelConfig.provider];
-    const languageModel = buildLanguageModel(providerConfig, modelConfig.model);
+    const languageModel = buildLanguageModel(providerConfig, modelConfig.model, modelConfig.maxContextSize);
 
     const agent: Agent = {
       name: "HackMD Agent",
@@ -192,13 +192,13 @@ export class CommandRegistry {
       maxContextSize: modelConfig.maxContextSize,
       systemPrompt: modelContext.systemPrompt,
       toolRegistry: modelContext.toolRegistry,
+      apiKey: providerConfig?.apiKey,
     };
 
     const newExecutor = new AgentExecutor(
       agent,
       modelContext.context,
       languageModel,
-      config.loopControl,
     );
 
     this.shell.setExecutor(newExecutor);
