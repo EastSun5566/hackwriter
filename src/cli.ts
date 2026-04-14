@@ -163,7 +163,7 @@ async function runAgent(options: {
     );
   }
   
-  const languageModel = buildLanguageModel(providerConfig, modelConfig.model);
+  const languageModel = buildLanguageModel(providerConfig, modelConfig.model, modelConfig.maxContextSize);
 
   if (!config.services.hackmd) {
     throw ErrorFactory.configuration(
@@ -229,6 +229,7 @@ async function runAgent(options: {
     maxContextSize: modelConfig.maxContextSize,
     systemPrompt: buildSystemPrompt(workDir),
     toolRegistry,
+    apiKey: providerConfig.apiKey,
   };
 
   // Create conversation context
@@ -240,7 +241,6 @@ async function runAgent(options: {
     agent,
     context,
     languageModel,
-    config.loopControl,
   );
 
   const shell = new InteractiveShell(executor, {

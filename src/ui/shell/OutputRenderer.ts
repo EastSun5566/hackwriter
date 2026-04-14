@@ -3,14 +3,8 @@ import ora, { type Ora } from 'ora';
 import { MessageBus } from '../../messaging/MessageBus.js';
 import type { AgentMessage } from '../../messaging/MessageTypes.js';
 
-interface ToolCallState {
-  name: string;
-  args: string;
-}
-
 export class OutputRenderer {
   private activeSpinner: Ora | null = null;
-  private toolCalls = new Map<string, ToolCallState>();
 
   attachToBus(bus: MessageBus): void {
     bus.subscribe((message) => this.render(message));
@@ -31,11 +25,6 @@ export class OutputRenderer {
         break;
 
       case 'tool_call_started':
-        this.toolCalls.set(message.toolCall.id, {
-          name: message.toolCall.name,
-          args: '',
-        });
-        
         this.activeSpinner = ora({
           text: chalk.yellow(`Using ${message.toolCall.name}...`),
           color: 'yellow',
@@ -43,19 +32,9 @@ export class OutputRenderer {
         }).start();
         break;
 
-      case 'tool_arguments_chunk': {
-        const state = this.toolCalls.get(message.toolCallId);
-        if (state) {
-          state.args += message.chunk;
-        }
-        break;
-      }
-
       case 'tool_completed':
         if (this.activeSpinner) {
           const brief = message.result.brief ?? 'Completed';
-          
-          // Check if tool execution was successful
           if (message.result.ok) {
             this.activeSpinner.succeed(chalk.green(`✓ ${brief}`));
           } else {
@@ -63,30 +42,11 @@ export class OutputRenderer {
           }
           this.activeSpinner = null;
         }
-        
-        // Don't log tool output - agent will describe the result
-        
-        this.toolCalls.delete(message.toolCallId);
         break;
 
       case 'tool_failed':
         if (this.activeSpinner) {
           this.activeSpinner.fail(chalk.red(`✗ ${message.error}`));
-          this.activeSpinner = null;
-        }
-        this.toolCalls.delete(message.toolCallId);
-        break;
-
-      case 'compression_started':
-        this.activeSpinner = ora({
-          text: 'Compressing context...',
-          discardStdin: false,
-        }).start();
-        break;
-
-      case 'compression_completed':
-        if (this.activeSpinner) {
-          this.activeSpinner.succeed(chalk.green('✓ Context compressed'));
           this.activeSpinner = null;
         }
         break;
