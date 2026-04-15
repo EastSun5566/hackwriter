@@ -1,5 +1,5 @@
-import { Logger } from '../utils/Logger.js';
 import type { ModelDefinition } from './ProviderRegistry.js';
+import { discoverRemoteModels } from './RemoteModelDiscovery.js';
 
 interface OpenAIModel {
   id: string;
@@ -13,79 +13,51 @@ interface OpenAIModelsResponse {
   data: OpenAIModel[];
 }
 
-/**
- * Discover OpenAI models by calling the API
- */
 export async function discoverOpenAIModels(apiKey: string): Promise<ModelDefinition[]> {
-  try {
-    const response = await fetch('https://api.openai.com/v1/models', {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-      },
-    });
-
-    if (!response.ok) {
-      Logger.debug('OpenAIDiscovery', `API request failed: ${response.status}`);
-      return [];
-    }
-
-    const data = await response.json() as OpenAIModelsResponse;
-    const models: ModelDefinition[] = [];
-
-    for (const model of data.data) {
-      // Filter to only include chat models (ignore fine-tuned, embeddings, etc.)
-      if (isChatModel(model.id)) {
-        models.push({
+  return discoverRemoteModels<OpenAIModelsResponse>({
+    loggerScope: 'OpenAIDiscovery',
+    url: 'https://api.openai.com/v1/models',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+    parseModels: (data) =>
+      data.data
+        .filter((model) => isChatModel(model.id))
+        .map((model) => ({
           id: model.id,
           name: model.id,
           contextWindow: getContextWindow(model.id),
-        });
-
-        Logger.debug('OpenAIDiscovery', `Discovered model: ${model.id}`);
-      }
-    }
-
-    // Sort by preference (latest models first)
-    return models.sort((a, b) => {
-      const order = ['gpt-4o', 'gpt-4', 'gpt-3.5', 'o1', 'o3'];
-      const aIndex = order.findIndex(prefix => a.id.startsWith(prefix));
-      const bIndex = order.findIndex(prefix => b.id.startsWith(prefix));
-      
-      // Use 999 as default priority for unknown models (push to end)
-      const aPriority = aIndex === -1 ? 999 : aIndex;
-      const bPriority = bIndex === -1 ? 999 : bIndex;
-      
-      return aPriority - bPriority;
-    });
-  } catch (error) {
-    Logger.debug('OpenAIDiscovery', `Failed to discover models: ${String(error)}`);
-    return [];
-  }
+        }))
+        .sort(compareModelPreference),
+  });
 }
 
-/**
- * Check if model ID is a chat model
- */
 function isChatModel(modelId: string): boolean {
   const chatPrefixes = ['gpt-4', 'gpt-3.5', 'o1', 'o3'];
   const excludePatterns = ['-instruct', 'embedding', 'whisper', 'tts', 'dall-e', 'davinci'];
-  
-  // Must start with chat prefix
+
   if (!chatPrefixes.some(prefix => modelId.startsWith(prefix))) {
     return false;
   }
-  
-  // Must not match exclude patterns
+
   if (excludePatterns.some(pattern => modelId.includes(pattern))) {
     return false;
   }
-  
+
   return true;
 }
 
-/**
- * Get context window size based on model ID
- */
+function compareModelPreference(a: ModelDefinition, b: ModelDefinition): number {
+  const order = ['gpt-4o', 'gpt-4', 'gpt-3.5', 'o1', 'o3'];
+  const aIndex = order.findIndex((prefix) => a.id.startsWith(prefix));
+  const bIndex = order.findIndex((prefix) => b.id.startsWith(prefix));
+
+  const aPriority = aIndex === -1 ? 999 : aIndex;
+  const bPriority = bIndex === -1 ? 999 : bIndex;
+
+  return aPriority - bPriority;
+}
+
 function getContextWindow(modelId: string): number {
   if (modelId.startsWith('gpt-4o')) return 128000;
   if (modelId.startsWith('o1')) return 200000;

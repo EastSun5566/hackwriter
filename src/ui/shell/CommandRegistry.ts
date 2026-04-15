@@ -4,6 +4,7 @@ import { AgentExecutor } from "../../agent/AgentExecutor.js";
 import { buildLanguageModel } from "../../agent/ModelFactory.js";
 import { ConfigurationLoader } from "../../config/ConfigurationLoader.js";
 import type { Agent } from "../../agent/Agent.js";
+import { runInteractiveSetup } from "../../commands/setup.js";
 
 type CommandHandler = (args: string[]) => Promise<void> | void;
 
@@ -212,102 +213,11 @@ export class CommandRegistry {
   }
 
   private async runSetup(): Promise<void> {
-    // Close shell readline to allow inquirer to use stdin exclusively
     this.shell.suspendReadline();
 
     try {
-      const { select, password } = await import("@inquirer/prompts");
-
-      console.log(chalk.bold.cyan("\n🔧 HackWriter Setup\n"));
-
-    // Show current config status
-    const modelContext = this.shell.getModelContext();
-    const { config } = modelContext;
-
-    console.log(chalk.gray("Current configuration:"));
-    if (config.services.hackmd?.apiToken) {
-      console.log(chalk.green("  ✓ HackMD API token configured"));
-    } else {
-      console.log(chalk.yellow("  ✗ HackMD API token not set"));
-    }
-
-    const hasAnthropicKey = !!config.providers.anthropic?.apiKey;
-    const hasOpenAIKey = !!config.providers.openai?.apiKey;
-    const hasOllama = Object.values(config.models).some((m) => m.provider === "ollama");
-
-    if (hasAnthropicKey) console.log(chalk.green("  ✓ Anthropic API key configured"));
-    if (hasOpenAIKey) console.log(chalk.green("  ✓ OpenAI API key configured"));
-    if (hasOllama) console.log(chalk.green("  ✓ Ollama available"));
-    console.log();
-
-    // Ask what to configure
-    const action = await select({
-      message: "What would you like to configure?",
-      choices: [
-        { name: "LLM Provider (Anthropic/OpenAI)", value: "llm" },
-        { name: "HackMD API Token", value: "hackmd" },
-        { name: "Cancel", value: "cancel" },
-      ],
-    });
-
-    if (action === "cancel") {
-      console.log(chalk.gray("Setup cancelled."));
-      return;
-    }
-
-    if (action === "hackmd") {
-      const token = await password({
-        message: "Enter HackMD API token:",
-        mask: "*",
-      });
-
-      if (token) {
-        config.services.hackmd = {
-          ...config.services.hackmd,
-          apiToken: token,
-        };
-        await ConfigurationLoader.save(config);
-        console.log(chalk.green("\n✓ HackMD API token saved!"));
-      }
-      return;
-    }
-
-    if (action === "llm") {
-      const provider = await select({
-        message: "Select LLM provider:",
-        choices: [
-          { name: "Anthropic (Claude)", value: "anthropic" },
-          { name: "OpenAI (GPT)", value: "openai" },
-          { name: "Cancel", value: "cancel" },
-        ],
-      });
-
-      if (provider === "cancel") {
-        console.log(chalk.gray("Setup cancelled."));
-        return;
-      }
-
-      const apiKey = await password({
-        message: `Enter ${provider === "anthropic" ? "Anthropic" : "OpenAI"} API key:`,
-        mask: "*",
-      });
-
-      if (apiKey) {
-        // Save to config - we need to reload the full config to preserve other settings
-        const fullConfig = await ConfigurationLoader.load();
-        fullConfig.providers[provider] = {
-          ...fullConfig.providers[provider],
-          type: provider as "anthropic" | "openai",
-          apiKey,
-        };
-        await ConfigurationLoader.save(fullConfig);
-
-        console.log(chalk.green(`\n✓ ${provider === "anthropic" ? "Anthropic" : "OpenAI"} API key saved!`));
-        console.log(chalk.yellow("\nRestart hackwriter to use the new configuration."));
-      }
-    }
+      await runInteractiveSetup(this.shell.getModelContext().config);
     } finally {
-      // Recreate readline after prompts are done
       this.shell.recreateReadline();
       this.shell.getReadline().prompt();
     }

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { CommandRegistry } from "../../../src/ui/shell/CommandRegistry.js";
 import type { InteractiveShell } from "../../../src/ui/shell/InteractiveShell.js";
+import { runInteractiveSetup } from "../../../src/commands/setup.js";
 
 // Mock ModelFactory
 vi.mock("../../../src/agent/ModelFactory.js", () => ({
@@ -10,8 +11,13 @@ vi.mock("../../../src/agent/ModelFactory.js", () => ({
 // Mock ConfigurationLoader
 vi.mock("../../../src/config/ConfigurationLoader.js", () => ({
   ConfigurationLoader: {
+    load: vi.fn(),
     save: vi.fn().mockResolvedValue(undefined),
   },
+}));
+
+vi.mock("../../../src/commands/setup.js", () => ({
+  runInteractiveSetup: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock AgentExecutor as a class
@@ -32,6 +38,7 @@ describe("CommandRegistry", () => {
   let mockConfig: any;
   let registry: CommandRegistry;
   let consoleSpy: ReturnType<typeof vi.spyOn>;
+  const mockPrompt = vi.fn();
 
   beforeEach(() => {
     mockConfig = {
@@ -88,6 +95,9 @@ describe("CommandRegistry", () => {
       })),
       setExecutor: vi.fn(),
       exit: vi.fn(),
+      suspendReadline: vi.fn(),
+      recreateReadline: vi.fn(),
+      getReadline: vi.fn(() => ({ prompt: mockPrompt })),
     } as Partial<InteractiveShell>;
 
     consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -168,6 +178,23 @@ describe("CommandRegistry", () => {
     it("should work with /q alias", async () => {
       await registry.execute("q");
       expect(mockShell.exit).toHaveBeenCalled();
+    });
+  });
+
+  describe("/setup command", () => {
+    it("should delegate to the shared interactive setup flow", async () => {
+      await registry.execute("setup");
+
+      expect(mockShell.suspendReadline).toHaveBeenCalledTimes(1);
+      expect(runInteractiveSetup).toHaveBeenCalledWith(mockConfig);
+      expect(mockShell.recreateReadline).toHaveBeenCalledTimes(1);
+      expect(mockPrompt).toHaveBeenCalledTimes(1);
+    });
+
+    it("should work with /config alias", async () => {
+      await registry.execute("config");
+
+      expect(runInteractiveSetup).toHaveBeenCalledWith(mockConfig);
     });
   });
 

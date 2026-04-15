@@ -1,21 +1,31 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const spinner = {
-  text: '',
-  start: vi.fn(),
-  stop: vi.fn(),
-  succeed: vi.fn(),
-  fail: vi.fn(),
+var spinner: {
+  text: string;
+  start: ReturnType<typeof vi.fn>;
+  stop: ReturnType<typeof vi.fn>;
+  succeed: ReturnType<typeof vi.fn>;
+  fail: ReturnType<typeof vi.fn>;
 };
 
-const oraFactory = vi.fn(() => ({
-  ...spinner,
-  start: vi.fn(() => spinner),
-}));
+var oraFactory: ReturnType<typeof vi.fn>;
 
-vi.mock('ora', () => ({
-  default: oraFactory,
-}));
+vi.mock('ora', () => {
+  spinner = {
+    text: '',
+    start: vi.fn(),
+    stop: vi.fn(),
+    succeed: vi.fn(),
+    fail: vi.fn(),
+  };
+
+  oraFactory = vi.fn(() => ({
+    ...spinner,
+    start: vi.fn(() => spinner),
+  }));
+
+  return { default: oraFactory };
+});
 
 import { OutputRenderer } from '../../../src/ui/shell/OutputRenderer.js';
 

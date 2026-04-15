@@ -1,5 +1,5 @@
-import { Logger } from '../utils/Logger.js';
 import type { ModelDefinition } from './ProviderRegistry.js';
+import { discoverRemoteModels } from './RemoteModelDiscovery.js';
 
 interface OllamaModelDetails {
   format: string;
@@ -21,36 +21,23 @@ interface OllamaListResponse {
   models: OllamaModel[];
 }
 
-/**
- * Discover Ollama models by calling the HTTP API
- */
-export async function discoverOllamaModels(baseUrl = 'http://localhost:11434/api'): Promise<ModelDefinition[]> {
-  try {
-    // AI SDK uses baseUrl with /api suffix, but /api/tags endpoint needs host base
-    const hostUrl = baseUrl.replace(/\/api\/?$/, '');
-    const response = await fetch(`${hostUrl}/api/tags`);
+function normalizeOllamaHostUrl(baseUrl: string): string {
+  return baseUrl.replace(/\/(?:api|v1)(?:\/.*)?$/u, '');
+}
 
-    if (!response.ok) {
-      Logger.debug('OllamaDiscovery', `API request failed: ${response.status}`);
-      return [];
-    }
+export async function discoverOllamaModels(
+  baseUrl = 'http://localhost:11434',
+): Promise<ModelDefinition[]> {
+  const hostUrl = normalizeOllamaHostUrl(baseUrl);
 
-    const data = await response.json() as OllamaListResponse;
-    const models: ModelDefinition[] = [];
-
-    for (const model of data.models) {
-      models.push({
+  return discoverRemoteModels<OllamaListResponse>({
+    loggerScope: 'OllamaDiscovery',
+    url: `${hostUrl}/api/tags`,
+    parseModels: (data) =>
+      data.models.map((model) => ({
         id: model.name,
         name: model.name,
-        contextWindow: 128000, // Default context window
-      });
-
-      Logger.debug('OllamaDiscovery', `Discovered Ollama model: ${model.name}`);
-    }
-
-    return models;
-  } catch (error) {
-    Logger.debug('OllamaDiscovery', `Failed to discover Ollama models: ${String(error)}`);
-    return [];
-  }
+        contextWindow: 128000,
+      })),
+  });
 }

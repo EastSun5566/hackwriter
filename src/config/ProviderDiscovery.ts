@@ -1,5 +1,6 @@
 import type { LLMProvider, LLMModel } from './Configuration.js';
 import { BUILT_IN_PROVIDERS } from './ProviderRegistry.js';
+import type { ModelDefinition } from './ProviderRegistry.js';
 import { Logger } from '../utils/Logger.js';
 
 export function discoverProviders(): Record<string, LLMProvider> {
@@ -37,32 +38,13 @@ export async function discoverModels(
       continue;
     }
 
-    // Get models for this provider
-    let modelsToAdd = definition.defaultModels;
-
-    // Try dynamic discovery with API, fallback to static
-    if (definition.type === 'anthropic' && provider.apiKey) {
-      const { discoverAnthropicModels } = await import('./AnthropicDiscovery.js');
-      const discovered = await discoverAnthropicModels(provider.apiKey);
-      if (discovered.length > 0) {
-        modelsToAdd = discovered;
-        Logger.debug('ProviderDiscovery', `Anthropic API: ${discovered.length} models`);
-      }
-    } else if (definition.type === 'openai' && provider.apiKey) {
-      const { discoverOpenAIModels } = await import('./OpenAIDiscovery.js');
-      const discovered = await discoverOpenAIModels(provider.apiKey);
-      if (discovered.length > 0) {
-        modelsToAdd = discovered;
-        Logger.debug('ProviderDiscovery', `OpenAI API: ${discovered.length} models`);
-      }
-    } else if (definition.type === 'ollama') {
-      const { discoverOllamaModels } = await import('./OllamaDiscovery.js');
-      modelsToAdd = await discoverOllamaModels(provider.baseUrl ?? 'http://localhost:11434');
-      Logger.debug('ProviderDiscovery', `Ollama: ${modelsToAdd.length} models`);
-    }
+    const modelsToAdd = await discoverProviderModels(
+      definition.type,
+      provider,
+      definition.defaultModels,
+    );
 
     for (const modelDef of modelsToAdd) {
-      // Use format: providerName-modelId
       const modelName = `${providerName}-${modelDef.id}`;
       models[modelName] = {
         provider: providerName,
@@ -77,12 +59,54 @@ export async function discoverModels(
   return models;
 }
 
-export function getShortModelName(fullModelId: string): string {
-  // Extract short name from model ID
-  // "claude-3-5-haiku-latest" -> "haiku"
-  // "gpt-4o-mini" -> "gpt-4o-mini"
-  // "llama3.1:8b" -> "llama3.1"
+async function discoverProviderModels(
+  providerType: (typeof BUILT_IN_PROVIDERS)[string]['type'],
+  provider: LLMProvider,
+  defaultModels: ModelDefinition[],
+): Promise<ModelDefinition[]> {
+  switch (providerType) {
+    case 'anthropic': {
+      if (!provider.apiKey) {
+        return defaultModels;
+      }
 
+      const { discoverAnthropicModels } = await import('./AnthropicDiscovery.js');
+      const discovered = await discoverAnthropicModels(provider.apiKey);
+
+      if (discovered.length > 0) {
+        Logger.debug('ProviderDiscovery', `Anthropic API: ${discovered.length} models`);
+        return discovered;
+      }
+
+      return defaultModels;
+    }
+
+    case 'openai': {
+      if (!provider.apiKey) {
+        return defaultModels;
+      }
+
+      const { discoverOpenAIModels } = await import('./OpenAIDiscovery.js');
+      const discovered = await discoverOpenAIModels(provider.apiKey);
+
+      if (discovered.length > 0) {
+        Logger.debug('ProviderDiscovery', `OpenAI API: ${discovered.length} models`);
+        return discovered;
+      }
+
+      return defaultModels;
+    }
+
+    case 'ollama': {
+      const { discoverOllamaModels } = await import('./OllamaDiscovery.js');
+      const discovered = await discoverOllamaModels(provider.baseUrl ?? 'http://localhost:11434');
+      Logger.debug('ProviderDiscovery', `Ollama: ${discovered.length} models`);
+      return discovered;
+    }
+  }
+}
+
+export function getShortModelName(fullModelId: string): string {
   const normalized = fullModelId.toLowerCase();
 
   if (normalized.includes('haiku')) return 'haiku';
@@ -98,6 +122,5 @@ export function getShortModelName(fullModelId: string): string {
     return match ? match[0] : fullModelId;
   }
 
-  // Fallback: return full ID
   return fullModelId;
 }
