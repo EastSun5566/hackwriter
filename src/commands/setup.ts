@@ -4,12 +4,29 @@ import { ConfigurationLoader } from '../config/ConfigurationLoader.js';
 import type { Configuration } from '../config/Configuration.js';
 import { discoverProviders, discoverModels } from '../config/ProviderDiscovery.js';
 import { loadHackMDCLIConfig } from '../config/HackMDConfigLoader.js';
+import {
+  describeHackMDTokenSource,
+  resolveHackMDToken,
+  type HackMDTokenSource,
+} from '../config/HackMDServiceResolution.js';
 import { DEFAULT_MAX_STEPS_PER_RUN, DEFAULT_MAX_RETRIES_PER_STEP } from '../config/constants.js';
+
+function toSetupTokenLabel(source: HackMDTokenSource): string {
+  switch (source) {
+    case 'env-hackwriter':
+      return 'HACKMD_API_TOKEN found';
+    case 'env-cli':
+      return 'HMD_API_ACCESS_TOKEN found (HackMD CLI compatible)';
+    case 'config-cli':
+      return 'HackMD CLI config found (~/.hackmd/config.json)';
+    case 'config-hackwriter':
+      return 'HackWriter config found';
+  }
+}
 
 export async function setupCommand(isAutoTriggered = false): Promise<void> {
   console.log(chalk.bold.cyan('\n🔧 HackWriter Setup\n'));
 
-  // 1. Show what's already discovered
   const providers = discoverProviders();
   const models = await discoverModels(providers);
   const modelCount = Object.keys(models).length;
@@ -34,22 +51,11 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
     }
   }
 
-  // 2. HackMD token (check all sources)
-  // Priority: HackWriter env > HackMD CLI env > HackMD CLI config file
-  let hackmdToken = process.env.HACKMD_API_TOKEN ?? process.env.HMD_API_ACCESS_TOKEN;
-  let tokenSource: 'env-hackwriter' | 'env-cli' | 'config-cli' | 'prompt' | null = null;
-  
-  // Check HackMD CLI config file if no env var
-  if (!hackmdToken) {
-    const hackmdCLIConfig = await loadHackMDCLIConfig();
-    if (hackmdCLIConfig?.accessToken) {
-      hackmdToken = hackmdCLIConfig.accessToken;
-      tokenSource = 'config-cli';
-    }
-  } else {
-    tokenSource = process.env.HACKMD_API_TOKEN ? 'env-hackwriter' : 'env-cli';
-  }
-  
+  const hackmdCLIConfig = await loadHackMDCLIConfig();
+  const detectedHackMDToken = resolveHackMDToken(undefined, hackmdCLIConfig);
+  let hackmdToken = detectedHackMDToken.token;
+  let tokenSource: HackMDTokenSource | 'prompt' | null = detectedHackMDToken.source ?? null;
+
   if (!hackmdToken) {
     console.log(chalk.yellow('Configuration needed:\n'));
     hackmdToken = await password({
@@ -63,18 +69,16 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
     tokenSource = 'prompt';
   } else {
     console.log(chalk.green('Configuration:'));
-    // Show which source was detected
-    if (tokenSource === 'env-hackwriter') {
-      console.log(chalk.green('  ✓ HACKMD_API_TOKEN found'));
-    } else if (tokenSource === 'env-cli') {
-      console.log(chalk.green('  ✓ HMD_API_ACCESS_TOKEN found (HackMD CLI compatible)'));
-    } else if (tokenSource === 'config-cli') {
-      console.log(chalk.green('  ✓ HackMD CLI config found (~/.hackmd/config.json)'));
+    if (tokenSource) {
+      console.log(chalk.green(`  ✓ ${toSetupTokenLabel(tokenSource)}`));
+      const sourceDescription = describeHackMDTokenSource(tokenSource);
+      if (sourceDescription && tokenSource === 'config-hackwriter') {
+        console.log(chalk.gray(`    source: ${sourceDescription}`));
+      }
     }
     console.log();
   }
 
-  // 3. If no models available, prompt user to add LLM provider
   let llmApiKey: string | undefined;
   let llmProvider: 'anthropic' | 'openai' | undefined;
   if (Object.keys(models).length === 0) {
@@ -89,11 +93,10 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
 
     if (providerChoice === 'skip') {
       console.log(chalk.cyan('\n🔍 Checking for Ollama...'));
-      
-      // Try to discover Ollama models
+
       const { discoverOllamaModels } = await import('../config/OllamaDiscovery.js');
       const ollamaModels = await discoverOllamaModels();
-      
+
       if (ollamaModels.length === 0) {
         console.log(chalk.red('\n❌ Ollama is not running or no models are installed'));
         console.log(chalk.gray('To use Ollama with HackWriter:'));
@@ -114,8 +117,7 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
         console.log(chalk.gray(`  ... and ${ollamaModels.length - 5} more`));
       }
       console.log();
-      
-      // Update models object with discovered Ollama models (convert ModelDefinition to LLMModel)
+
       for (const modelDef of ollamaModels) {
         const modelName = `ollama-${modelDef.id}`;
         models[modelName] = {
@@ -140,7 +142,6 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
     }
   }
 
-  // 4. Save configuration (only if token was entered via prompt)
   if (tokenSource === 'prompt') {
     const configToSave: Partial<Configuration> = {
       services: {
@@ -154,7 +155,6 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
       },
     };
 
-    // Add LLM provider if configured
     if (llmProvider && llmApiKey) {
       configToSave.providers = {
         [llmProvider]: {
@@ -167,7 +167,6 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
     await ConfigurationLoader.save(configToSave as Configuration);
     console.log(chalk.green('\n✅ Configuration saved!\n'));
   } else {
-    // Token from env or HackMD CLI config - only save LLM provider if configured
     if (llmProvider && llmApiKey) {
       const configToSave: Partial<Configuration> = {
         providers: {

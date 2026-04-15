@@ -2,20 +2,21 @@ import type { API } from "@hackmd/api";
 import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.js";
 import type { ApprovalManager } from "../../agent/ApprovalManager.js";
 import { handleHackMDError } from "./errorHandler.js";
-import { MAX_HACKMD_CONTENT_SIZE } from "../../config/constants.js";
 import { withRetry, shouldRetryHttpError } from "../../utils/retry.js";
+import {
+  NotePermissionRole,
+  requestMutationApproval,
+  validateNoteContent,
+  validateNoteContentSize,
+  validateNoteTitle,
+} from "./mutationUtils.js";
 
-// Re-define enum as the package doesn't export it properly
-export enum NotePermissionRole {
-  OWNER = "owner",
-  SIGNED_IN = "signed_in",
-  GUEST = "guest",
-}
+export { NotePermissionRole } from "./mutationUtils.js";
 
 interface CreateNoteParams {
   title: string;
   content: string;
-  teamPath?: string; // Optional: if provided, creates a team note
+  teamPath?: string;
   readPermission?: NotePermissionRole;
   writePermission?: NotePermissionRole;
   [key: string]: unknown;
@@ -62,50 +63,34 @@ export class CreateNoteTool extends Tool<CreateNoteParams> {
   }
 
   async call(params: CreateNoteParams): Promise<ToolResult> {
-    // Validate inputs
-    if (!params.title || params.title.trim() === '') {
-      return this.error(
-        'Note title cannot be empty',
-        'Title is required',
-        'Invalid title',
-      );
+    const titleError = validateNoteTitle(params.title);
+    if (titleError) {
+      return titleError;
     }
 
-    if (!params.content || params.content.trim() === '') {
-      return this.error(
-        'Note content cannot be empty',
-        'Content is required',
-        'Invalid content',
-      );
+    const contentError = validateNoteContent(params.content);
+    if (contentError) {
+      return contentError;
     }
 
-    // Check content size (5MB limit for HackMD)
-    if (params.content.length > MAX_HACKMD_CONTENT_SIZE) {
-      const sizeMB = (params.content.length / (1024 * 1024)).toFixed(2);
-      return this.error(
-        `Content too large (${sizeMB}MB, maximum ${MAX_HACKMD_CONTENT_SIZE / (1024 * 1024)}MB allowed)`,
-        'Content exceeds HackMD size limit',
-        'Too large',
-      );
+    const sizeError = validateNoteContentSize(params.content);
+    if (sizeError) {
+      return sizeError;
     }
 
     const isTeamNote = Boolean(params.teamPath);
-    const actionDesc = isTeamNote
-      ? `Create team note "${params.title}" in team "${params.teamPath}"`
-      : `Create note "${params.title}"`;
+    const approvalError = await requestMutationApproval({
+      approvalManager: this.approvalManager,
+      toolName: this.name,
+      teamPath: params.teamPath,
+      personalAction: "create_note",
+      teamAction: "create_team_note",
+      personalDescription: `Create note "${params.title}"`,
+      teamDescription: `Create team note "${params.title}" in team "${params.teamPath}"`,
+    });
 
-    const approved = await this.approvalManager.request(
-      this.name,
-      isTeamNote ? "create_team_note" : "create_note",
-      actionDesc,
-    );
-
-    if (!approved) {
-      return this.error(
-        "Operation rejected by user",
-        "Operation rejected by user",
-        "Rejected",
-      );
+    if (approvalError) {
+      return approvalError;
     }
 
     try {

@@ -5,7 +5,6 @@ describe('ProviderDiscovery', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    vi.resetModules();
     process.env = { ...originalEnv };
   });
 
@@ -39,7 +38,7 @@ describe('ProviderDiscovery', () => {
 
       expect(providers.ollama).toBeDefined();
       expect(providers.ollama.type).toBe('ollama');
-      expect(providers.ollama.baseUrl).toBe('http://localhost:11434/api');
+      expect(providers.ollama.baseUrl).toBe('http://localhost:11434');
     });
 
     it('should discover multiple providers', () => {

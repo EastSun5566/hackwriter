@@ -2,13 +2,18 @@ import type { API } from "@hackmd/api";
 import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.js";
 import type { ApprovalManager } from "../../agent/ApprovalManager.js";
 import { handleHackMDError } from "./errorHandler.js";
-import { MAX_HACKMD_CONTENT_SIZE } from "../../config/constants.js";
 import { withRetry, shouldRetryHttpError } from "../../utils/retry.js";
+import {
+  requestMutationApproval,
+  validateNoteContent,
+  validateNoteContentSize,
+  validateNoteId,
+} from "./mutationUtils.js";
 
 interface UpdateNoteParams {
   noteId: string;
   content: string;
-  teamPath?: string; // Optional: if provided, updates a team note
+  teamPath?: string;
   [key: string]: unknown;
 }
 
@@ -43,50 +48,34 @@ export class UpdateNoteTool extends Tool<UpdateNoteParams> {
   }
 
   async call(params: UpdateNoteParams): Promise<ToolResult> {
-    // Validate inputs
-    if (!params.noteId || params.noteId.trim() === '') {
-      return this.error(
-        'Note ID cannot be empty',
-        'Note ID is required',
-        'Invalid ID',
-      );
+    const noteIdError = validateNoteId(params.noteId);
+    if (noteIdError) {
+      return noteIdError;
     }
 
-    if (!params.content || params.content.trim() === '') {
-      return this.error(
-        'Note content cannot be empty',
-        'Content is required',
-        'Invalid content',
-      );
+    const contentError = validateNoteContent(params.content);
+    if (contentError) {
+      return contentError;
     }
 
-    // Check content size (5MB limit for HackMD)
-    if (params.content.length > MAX_HACKMD_CONTENT_SIZE) {
-      const sizeMB = (params.content.length / (1024 * 1024)).toFixed(2);
-      return this.error(
-        `Content too large (${sizeMB}MB, maximum ${MAX_HACKMD_CONTENT_SIZE / (1024 * 1024)}MB allowed)`,
-        'Content exceeds HackMD size limit',
-        'Too large',
-      );
+    const sizeError = validateNoteContentSize(params.content);
+    if (sizeError) {
+      return sizeError;
     }
 
     const isTeamNote = Boolean(params.teamPath);
-    const actionDesc = isTeamNote
-      ? `Update team note ${params.noteId} in team "${params.teamPath}"`
-      : `Update note ${params.noteId}`;
+    const approvalError = await requestMutationApproval({
+      approvalManager: this.approvalManager,
+      toolName: this.name,
+      teamPath: params.teamPath,
+      personalAction: "update_note",
+      teamAction: "update_team_note",
+      personalDescription: `Update note ${params.noteId}`,
+      teamDescription: `Update team note ${params.noteId} in team "${params.teamPath}"`,
+    });
 
-    const approved = await this.approvalManager.request(
-      this.name,
-      isTeamNote ? "update_team_note" : "update_note",
-      actionDesc,
-    );
-
-    if (!approved) {
-      return this.error(
-        "Operation rejected by user",
-        "Operation rejected by user",
-        "Rejected",
-      );
+    if (approvalError) {
+      return approvalError;
     }
 
     try {

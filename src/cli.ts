@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import "dotenv/config";
 import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -10,7 +11,7 @@ import { API } from "@hackmd/api";
 import { AgentExecutor } from "./agent/AgentExecutor.js";
 import { ConversationContext } from "./agent/ConversationContext.js";
 import { ApprovalManager } from "./agent/ApprovalManager.js";
-import { ToolRegistry } from "./tools/base/ToolRegistry.js";
+import { ToolRegistry, type ToolLike } from "./tools/base/ToolRegistry.js";
 import { ConfigurationLoader } from "./config/ConfigurationLoader.js";
 import { SessionManager } from "./session/SessionManager.js";
 import { InteractiveShell } from "./ui/shell/InteractiveShell.js";
@@ -20,6 +21,7 @@ import { Logger } from "./utils/Logger.js";
 import { ErrorFactory } from "./utils/ErrorTypes.js";
 import { SensitiveDataRedactor } from "./utils/SensitiveDataRedactor.js";
 import type { Agent } from "./agent/Agent.js";
+import type { ToolResult } from "./tools/base/Tool.js";
 
 import {
   ListNotesTool,
@@ -176,6 +178,13 @@ async function runAgent(options: {
   const toolRegistry = new ToolRegistry();
 
   const hackmdConfig = config.services.hackmd;
+  const localHackMDTools = createLocalHackMDTools(
+    hackmdConfig.apiToken,
+    approvalManager,
+  );
+  const localHackMDToolsByName = new Map(
+    localHackMDTools.map((tool) => [tool.name, tool] as const),
+  );
   let usedMcp = false;
 
   // Try MCP if mcpBaseUrl is configured
@@ -196,7 +205,13 @@ async function runAgent(options: {
       // Register MCP tools
       const mcpTools = await mcpClient.listTools();
       for (const toolDef of mcpTools) {
-        toolRegistry.register(new MCPToolAdapter(mcpClient, toolDef));
+        toolRegistry.register(
+          new MCPToolAdapter(
+            mcpClient,
+            toolDef,
+            buildHackMDMcpFallback(toolDef.name, localHackMDToolsByName),
+          ),
+        );
         Logger.debug("CLI", `Registered MCP tool: ${toolDef.name}`);
       }
 
@@ -212,7 +227,7 @@ async function runAgent(options: {
   // Use local HackMD API if MCP not used
   if (!usedMcp) {
     Logger.info("CLI", "Using Local HackMD API mode");
-    registerLocalHackMDTools(toolRegistry, hackmdConfig.apiToken, approvalManager);
+    registerLocalHackMDTools(toolRegistry, localHackMDTools);
   }
 
   // File tools (always local)
@@ -277,30 +292,76 @@ Guidelines:
 Working directory: ${workDir}`;
 }
 
-function registerLocalHackMDTools(
-  toolRegistry: ToolRegistry,
+function createLocalHackMDTools(
   apiToken: string,
-  approvalManager: ApprovalManager
-): void {
+  approvalManager: ApprovalManager,
+): ToolLike[] {
   const hackmdClient = new API(apiToken);
 
-  // Note tools (support both personal and team notes via optional teamPath)
-  toolRegistry.register(new ListNotesTool(hackmdClient));
-  toolRegistry.register(new ReadNoteTool(hackmdClient));
-  toolRegistry.register(new CreateNoteTool(hackmdClient, approvalManager));
-  toolRegistry.register(new UpdateNoteTool(hackmdClient, approvalManager));
-  toolRegistry.register(new DeleteNoteTool(hackmdClient, approvalManager));
+  return [
+    new ListNotesTool(hackmdClient),
+    new ReadNoteTool(hackmdClient),
+    new CreateNoteTool(hackmdClient, approvalManager),
+    new UpdateNoteTool(hackmdClient, approvalManager),
+    new DeleteNoteTool(hackmdClient, approvalManager),
+    new GetUserInfoTool(hackmdClient),
+    new ListTeamsTool(hackmdClient),
+    new GetHistoryTool(hackmdClient),
+    new SearchNotesTool(hackmdClient),
+    new ExportNoteTool(hackmdClient),
+  ];
+}
 
-  // User & team management
-  toolRegistry.register(new GetUserInfoTool(hackmdClient));
-  toolRegistry.register(new ListTeamsTool(hackmdClient));
-  toolRegistry.register(new GetHistoryTool(hackmdClient));
-
-  // Advanced features
-  toolRegistry.register(new SearchNotesTool(hackmdClient));
-  toolRegistry.register(new ExportNoteTool(hackmdClient));
+function registerLocalHackMDTools(
+  toolRegistry: ToolRegistry,
+  tools: ToolLike[],
+): void {
+  for (const tool of tools) {
+    toolRegistry.register(tool);
+  }
 
   Logger.debug("CLI", "Registered local HackMD tools");
+}
+
+function buildHackMDMcpFallback(
+  mcpToolName: string,
+  localHackMDToolsByName: Map<string, ToolLike>,
+): ConstructorParameters<
+  typeof import("./mcp/MCPToolAdapter.js").MCPToolAdapter
+>[2] {
+  switch (mcpToolName) {
+    case "get-note": {
+      const localReadTool = localHackMDToolsByName.get("read_note");
+      if (!localReadTool) {
+        return undefined;
+      }
+
+      return {
+        tool: localReadTool,
+        shouldFallback: (_params, _response, result) =>
+          isLikelyTruncatedHackMDNoteResult(result),
+      };
+    }
+
+    default:
+      return undefined;
+  }
+}
+
+function isLikelyTruncatedHackMDNoteResult(result: ToolResult): boolean {
+  if (!result.ok) {
+    return false;
+  }
+
+  const nonEmptyLines = result.output
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  return (
+    nonEmptyLines.length === 1 &&
+    /^#{1,6}\s/u.test(nonEmptyLines[0])
+  );
 }
 
 /**

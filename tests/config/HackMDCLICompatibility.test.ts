@@ -1,10 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
+  resolveHackMDApiBaseUrl,
+  resolveHackMDMcpBaseUrl,
+  resolveHackMDServiceConfig,
+  resolveHackMDToken,
+} from '../../src/config/HackMDServiceResolution.js';
+import {
   HACKMD_CLI_TOKEN_ENV,
   HACKMD_CLI_ENDPOINT_ENV,
   HACKWRITER_TOKEN_ENV,
+  HACKWRITER_MCP_URL_ENV,
   HACKWRITER_API_URL_ENV,
   DEFAULT_HACKMD_API_URL,
+  DEFAULT_HACKMD_MCP_URL,
 } from '../../src/config/constants.js';
 
 describe('HackMD CLI Compatibility', () => {
@@ -16,6 +24,7 @@ describe('HackMD CLI Compatibility', () => {
     delete process.env[HACKMD_CLI_TOKEN_ENV];
     delete process.env[HACKWRITER_API_URL_ENV];
     delete process.env[HACKMD_CLI_ENDPOINT_ENV];
+    delete process.env[HACKWRITER_MCP_URL_ENV];
   });
 
   afterEach(() => {
@@ -28,31 +37,26 @@ describe('HackMD CLI Compatibility', () => {
       process.env[HACKWRITER_TOKEN_ENV] = 'hackwriter-token';
       process.env[HACKMD_CLI_TOKEN_ENV] = 'hackmd-cli-token';
 
-      const token = 
-        process.env[HACKWRITER_TOKEN_ENV] ?? 
-        process.env[HACKMD_CLI_TOKEN_ENV];
+      const { token, source } = resolveHackMDToken();
 
       expect(token).toBe('hackwriter-token');
+      expect(source).toBe('env-hackwriter');
     });
 
     it('should use HackMD CLI token when HackWriter token is not set', () => {
       process.env[HACKMD_CLI_TOKEN_ENV] = 'hackmd-cli-token';
 
-      const token = 
-        process.env[HACKWRITER_TOKEN_ENV] ?? 
-        process.env[HACKMD_CLI_TOKEN_ENV];
+      const { token, source } = resolveHackMDToken();
 
       expect(token).toBe('hackmd-cli-token');
+      expect(source).toBe('env-cli');
     });
 
     it('should prioritize HackWriter API URL over HackMD CLI endpoint', () => {
       process.env[HACKWRITER_API_URL_ENV] = 'https://hackwriter.example.com';
       process.env[HACKMD_CLI_ENDPOINT_ENV] = 'https://hackmd-cli.example.com';
 
-      const url = 
-        process.env[HACKWRITER_API_URL_ENV] ?? 
-        process.env[HACKMD_CLI_ENDPOINT_ENV] ??
-        DEFAULT_HACKMD_API_URL;
+      const url = resolveHackMDApiBaseUrl();
 
       expect(url).toBe('https://hackwriter.example.com');
     });
@@ -60,21 +64,19 @@ describe('HackMD CLI Compatibility', () => {
     it('should use HackMD CLI endpoint when HackWriter URL is not set', () => {
       process.env[HACKMD_CLI_ENDPOINT_ENV] = 'https://hackmd-cli.example.com';
 
-      const url = 
-        process.env[HACKWRITER_API_URL_ENV] ?? 
-        process.env[HACKMD_CLI_ENDPOINT_ENV] ??
-        DEFAULT_HACKMD_API_URL;
+      const url = resolveHackMDApiBaseUrl();
 
       expect(url).toBe('https://hackmd-cli.example.com');
     });
 
     it('should use default URL when neither is set', () => {
-      const url = 
-        process.env[HACKWRITER_API_URL_ENV] ?? 
-        process.env[HACKMD_CLI_ENDPOINT_ENV] ??
-        DEFAULT_HACKMD_API_URL;
+      const url = resolveHackMDApiBaseUrl();
 
       expect(url).toBe(DEFAULT_HACKMD_API_URL);
+    });
+
+    it('should resolve default MCP URL when no override is set', () => {
+      expect(resolveHackMDMcpBaseUrl()).toBe(DEFAULT_HACKMD_MCP_URL);
     });
   });
 
@@ -101,16 +103,11 @@ describe('HackMD CLI Compatibility', () => {
       process.env[HACKMD_CLI_TOKEN_ENV] = 'cli-token';
       process.env[HACKMD_CLI_ENDPOINT_ENV] = 'https://cli.example.com';
 
-      const token = 
-        process.env[HACKWRITER_TOKEN_ENV] ?? 
-        process.env[HACKMD_CLI_TOKEN_ENV];
-      
-      const url = 
-        process.env[HACKWRITER_API_URL_ENV] ?? 
-        process.env[HACKMD_CLI_ENDPOINT_ENV] ??
-        DEFAULT_HACKMD_API_URL;
+      const token = resolveHackMDToken();
+      const url = resolveHackMDApiBaseUrl();
 
-      expect(token).toBe('cli-token');
+      expect(token.token).toBe('cli-token');
+      expect(token.source).toBe('env-cli');
       expect(url).toBe('https://cli.example.com');
     });
 
@@ -118,16 +115,11 @@ describe('HackMD CLI Compatibility', () => {
       process.env[HACKWRITER_TOKEN_ENV] = 'writer-token';
       process.env[HACKWRITER_API_URL_ENV] = 'https://writer.example.com';
 
-      const token = 
-        process.env[HACKWRITER_TOKEN_ENV] ?? 
-        process.env[HACKMD_CLI_TOKEN_ENV];
-      
-      const url = 
-        process.env[HACKWRITER_API_URL_ENV] ?? 
-        process.env[HACKMD_CLI_ENDPOINT_ENV] ??
-        DEFAULT_HACKMD_API_URL;
+      const token = resolveHackMDToken();
+      const url = resolveHackMDApiBaseUrl();
 
-      expect(token).toBe('writer-token');
+      expect(token.token).toBe('writer-token');
+      expect(token.source).toBe('env-hackwriter');
       expect(url).toBe('https://writer.example.com');
     });
 
@@ -135,16 +127,10 @@ describe('HackMD CLI Compatibility', () => {
       process.env[HACKWRITER_TOKEN_ENV] = 'writer-token';
       process.env[HACKMD_CLI_ENDPOINT_ENV] = 'https://cli.example.com';
 
-      const token = 
-        process.env[HACKWRITER_TOKEN_ENV] ?? 
-        process.env[HACKMD_CLI_TOKEN_ENV];
-      
-      const url = 
-        process.env[HACKWRITER_API_URL_ENV] ?? 
-        process.env[HACKMD_CLI_ENDPOINT_ENV] ??
-        DEFAULT_HACKMD_API_URL;
+      const token = resolveHackMDToken();
+      const url = resolveHackMDApiBaseUrl();
 
-      expect(token).toBe('writer-token');
+      expect(token.token).toBe('writer-token');
       expect(url).toBe('https://cli.example.com');
     });
 
@@ -152,12 +138,36 @@ describe('HackMD CLI Compatibility', () => {
       process.env[HACKWRITER_TOKEN_ENV] = '';
       process.env[HACKMD_CLI_TOKEN_ENV] = 'fallback-token';
 
-      // Empty string is falsy, should fall back to CLI token
-      const token = 
-        process.env[HACKWRITER_TOKEN_ENV] || 
-        process.env[HACKMD_CLI_TOKEN_ENV];
+      const token = resolveHackMDToken();
 
-      expect(token).toBe('fallback-token');
+      expect(token.token).toBe('fallback-token');
+      expect(token.source).toBe('env-cli');
+    });
+
+    it('should fall back to saved HackWriter config before HackMD CLI config', () => {
+      const { token, source } = resolveHackMDToken(
+        { apiToken: 'saved-token' },
+        { accessToken: 'cli-config-token' },
+      );
+
+      expect(token).toBe('saved-token');
+      expect(source).toBe('config-hackwriter');
+    });
+
+    it('should build a full HackMD service config from the first available sources', () => {
+      const resolved = resolveHackMDServiceConfig(
+        { apiBaseUrl: 'https://saved.example.com/v1' },
+        { accessToken: 'cli-config-token' },
+      );
+
+      expect(resolved).toEqual({
+        tokenSource: 'config-cli',
+        hackmd: {
+          apiToken: 'cli-config-token',
+          apiBaseUrl: 'https://saved.example.com/v1',
+          mcpBaseUrl: DEFAULT_HACKMD_MCP_URL,
+        },
+      });
     });
   });
 });

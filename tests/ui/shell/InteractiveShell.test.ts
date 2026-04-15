@@ -120,6 +120,22 @@ describe("InteractiveShell", () => {
       const prompt = (shell as any).getPrompt();
       expect(prompt).toMatch(/@phi3/);
     });
+
+    it("should show fractional usage for small non-zero context percentages", () => {
+      mockExecutor.status = {
+        contextUsage: 0.004,
+        tokenCount: 512,
+        currentStep: 1,
+      } as AgentExecutor["status"];
+
+      const shell = new InteractiveShell(
+        mockExecutor as AgentExecutor,
+        modelContext,
+      );
+
+      const prompt = (shell as any).getPrompt();
+      expect(prompt).toContain("[0.4%]");
+    });
   });
 
   describe("exit", () => {

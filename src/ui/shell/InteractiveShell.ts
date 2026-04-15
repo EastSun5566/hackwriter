@@ -108,15 +108,33 @@ export class InteractiveShell implements Disposable {
 
   private getPrompt(): string {
     const status = this.executor.status;
-    const contextPercent = (status.contextUsage * 100).toFixed(0);
+    const contextPercent = this.formatContextPercent(status.contextUsage);
     const modelName = this.getShortModelName();
 
     return chalk.bold(
       `${process.env.USER ?? "user"}` +
         chalk.gray(`@${modelName}`) +
-        chalk.gray(` [${contextPercent}%]`) +
+        chalk.gray(` [${contextPercent}]`) +
         " > ",
     );
+  }
+
+  private formatContextPercent(contextUsage: number): string {
+    const percent = Math.max(0, contextUsage * 100);
+
+    if (percent === 0) {
+      return "0%";
+    }
+
+    if (percent < 0.1) {
+      return "<0.1%";
+    }
+
+    if (percent < 1) {
+      return `${percent.toFixed(1)}%`;
+    }
+
+    return `${percent.toFixed(0)}%`;
   }
 
   private getShortModelName(): string {

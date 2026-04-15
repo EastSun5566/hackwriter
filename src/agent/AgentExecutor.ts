@@ -1,7 +1,11 @@
 import { Agent as PiAgent } from "@mariozechner/pi-agent-core";
 import type { AgentEvent, AgentTool } from "@mariozechner/pi-agent-core";
 import { Type } from "@mariozechner/pi-ai";
-import type { Message, Model } from "@mariozechner/pi-ai";
+import type {
+  AssistantMessage as PiAssistantMessage,
+  Message,
+  Model,
+} from "@mariozechner/pi-ai";
 
 import type { Agent } from "./Agent.js";
 import type { ConversationContext } from "./ConversationContext.js";
@@ -45,13 +49,105 @@ function wrapTool(tool: ToolLike): AgentTool {
   };
 }
 
+function estimateTokens(text: string): number {
+  if (text.length === 0) {
+    return 0;
+  }
+
+  return Math.ceil(text.length / 4);
+}
+
+function serializeMessage(message: Message): string {
+  if (message.role === "user") {
+    if (typeof message.content === "string") {
+      return message.content;
+    }
+
+    return message.content
+      .map((block) =>
+        block.type === "text"
+          ? block.text
+          : `[image:${block.mimeType}:${block.data.length}]`,
+      )
+      .join("\n");
+  }
+
+  if (message.role === "assistant") {
+    return message.content
+      .map((block) => {
+        switch (block.type) {
+          case "text":
+            return block.text;
+          case "thinking":
+            return block.thinking;
+          case "toolCall":
+            return `${block.name}:${JSON.stringify(block.arguments)}`;
+        }
+      })
+      .join("\n");
+  }
+
+  return [
+    message.toolName,
+    ...message.content.map((block) =>
+      block.type === "text"
+        ? block.text
+        : `[image:${block.mimeType}:${block.data.length}]`,
+    ),
+  ].join("\n");
+}
+
+function estimateConversationTokens(
+  messages: Message[],
+  systemPrompt: string,
+  tools: ToolLike[],
+): number {
+  const parts: string[] = [];
+
+  if (systemPrompt.length > 0) {
+    parts.push(`system:${systemPrompt}`);
+  }
+
+  for (const message of messages) {
+    parts.push(`${message.role}:${serializeMessage(message)}`);
+  }
+
+  if (tools.length > 0) {
+    parts.push(
+      `tools:${JSON.stringify(
+        tools.map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+        })),
+      )}`,
+    );
+  }
+
+  return estimateTokens(parts.join("\n\n"));
+}
+
+function getReportedTokenCount(message: PiAssistantMessage): number {
+  const { usage } = message;
+
+  if (usage.totalTokens > 0) {
+    return usage.totalTokens;
+  }
+
+  return usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+}
+
 export class AgentExecutor {
   private piAgent: PiAgent;
   private context: ConversationContext;
   private messageBus: MessageBus;
   private maxContextSize: number;
+  private readonly systemPrompt: string;
+  private readonly toolsForEstimation: ToolLike[];
   private _tokenCount = 0;
   private _stepCount = 0;
+  private sawUsageThisRun = false;
+  private streamedAssistantText = new Map<string, number>();
 
   constructor(
     agent: Agent,
@@ -60,9 +156,12 @@ export class AgentExecutor {
   ) {
     this.context = context;
     this.maxContextSize = agent.maxContextSize;
+    this.systemPrompt = agent.systemPrompt;
     this.messageBus = MessageBus.getInstance();
+    this._tokenCount = context.tokenCount;
 
-    const tools = agent.toolRegistry.getAll().map(wrapTool);
+    this.toolsForEstimation = agent.toolRegistry.getAll();
+    const tools = this.toolsForEstimation.map(wrapTool);
     const apiKey = agent.apiKey;
 
     this.piAgent = new PiAgent({
@@ -72,15 +171,29 @@ export class AgentExecutor {
         tools,
         messages: context.getHistory(),
       },
-      getApiKey: apiKey ? () => Promise.resolve(apiKey) : undefined,
+      getApiKey: (providerName) => {
+        if (apiKey) {
+          return apiKey;
+        }
+
+        // pi-ai's OpenAI-compatible "simple" streaming path requires an API key,
+        // but Ollama ignores it. Return a dummy value so local Ollama models work.
+        if (providerName === "ollama") {
+          return "ollama";
+        }
+
+        return undefined;
+      },
     });
 
     this.piAgent.subscribe((event) => this.handleEvent(event));
   }
 
   get status(): ExecutorStatus {
+    const safeMaxContextSize = Math.max(this.maxContextSize, 1);
+
     return {
-      contextUsage: this._tokenCount / this.maxContextSize,
+      contextUsage: Math.min(this._tokenCount / safeMaxContextSize, 1),
       tokenCount: this._tokenCount,
       currentStep: this._stepCount,
     };
@@ -90,6 +203,7 @@ export class AgentExecutor {
     Logger.debug("AgentExecutor", "Starting execution", {
       input: userInput.slice(0, 100),
     });
+    this.sawUsageThisRun = false;
     await this.piAgent.prompt(userInput);
     Logger.debug("AgentExecutor", "Execution completed", {
       finalTokens: this._tokenCount,
@@ -97,7 +211,7 @@ export class AgentExecutor {
     });
   }
 
-  private handleEvent(event: AgentEvent): void {
+  private async handleEvent(event: AgentEvent): Promise<void> {
     switch (event.type) {
       case "turn_start":
         this._stepCount++;
@@ -108,26 +222,41 @@ export class AgentExecutor {
         break;
 
       case "turn_end": {
-        const msg = event.message as unknown as Record<string, unknown>;
-        if (
-          msg.role === "assistant" &&
-          msg.usage &&
-          typeof msg.usage === "object"
-        ) {
-          const usage = msg.usage as { input?: number; output?: number };
-          this._tokenCount = (usage.input ?? 0) + (usage.output ?? 0);
-          void this.context.setTokenCount(this._tokenCount);
+        if (event.message.role === "assistant") {
+          const tokenCount = getReportedTokenCount(event.message);
+
+          if (tokenCount > 0) {
+            this.sawUsageThisRun = true;
+            await this.updateTokenCount(tokenCount);
+          }
         }
         this.messageBus.publish({ type: "step_completed" });
         break;
       }
 
       case "message_update":
-        if (event.assistantMessageEvent.type === "text_delta") {
+        if (
+          event.message.role === "assistant" &&
+          event.assistantMessageEvent.type === "text_delta"
+        ) {
+          const message = event.message;
+          const messageKey = this.getAssistantMessageKey(message);
+          const streamedLength = this.streamedAssistantText.get(messageKey) ?? 0;
+          this.streamedAssistantText.set(
+            messageKey,
+            streamedLength + event.assistantMessageEvent.delta.length,
+          );
+
           this.messageBus.publish({
             type: "text_chunk",
             text: event.assistantMessageEvent.delta,
           });
+        }
+        break;
+
+      case "message_end":
+        if (event.message.role === "assistant") {
+          this.publishRemainingAssistantText(event.message);
         }
         break;
 
@@ -165,21 +294,83 @@ export class AgentExecutor {
         break;
       }
 
-      case "agent_end":
+      case "agent_end": {
+        const assistantError = event.messages.find(
+          (message): message is PiAssistantMessage =>
+            message.role === "assistant" &&
+            typeof message.errorMessage === "string" &&
+            message.errorMessage.length > 0,
+        );
+
+        if (assistantError?.errorMessage) {
+          this.messageBus.publish({
+            type: "agent_failed",
+            error: assistantError.errorMessage,
+          });
+        }
+
         // Sync agent messages back to the conversation context
-        void this.syncMessages(event.messages as Message[]);
+        await this.syncMessages(event.messages as Message[]);
+
+        if (!this.sawUsageThisRun || this._tokenCount === 0) {
+          await this.updateTokenCount(
+            estimateConversationTokens(
+              this.context.getHistory(),
+              this.systemPrompt,
+              this.toolsForEstimation,
+            ),
+          );
+        }
         break;
+      }
 
       default:
         break;
     }
   }
 
-  private async syncMessages(messages: Message[]): Promise<void> {
-    const existing = this.context.getHistory();
-    const newMessages = messages.slice(existing.length);
-    for (const msg of newMessages) {
-      await this.context.addMessage(msg);
+  private getAssistantMessageKey(message: PiAssistantMessage): string {
+    return message.responseId ?? `${message.model}:${message.timestamp}`;
+  }
+
+  private publishRemainingAssistantText(message: PiAssistantMessage): void {
+    const fullText = message.content
+      .filter(
+        (block): block is Extract<PiAssistantMessage["content"][number], { type: "text" }> =>
+          block.type === "text",
+      )
+      .map((block) => block.text)
+      .join("");
+
+    const messageKey = this.getAssistantMessageKey(message);
+    const streamedLength = this.streamedAssistantText.get(messageKey) ?? 0;
+
+    if (fullText.length > streamedLength) {
+      this.messageBus.publish({
+        type: "text_chunk",
+        text: fullText.slice(streamedLength),
+      });
     }
+
+    this.streamedAssistantText.delete(messageKey);
+  }
+
+  private async syncMessages(messages: Message[]): Promise<void> {
+    if (messages.length === 0) {
+      return;
+    }
+
+    await this.context.addMessage(messages);
+  }
+
+  private async updateTokenCount(tokenCount: number): Promise<void> {
+    const normalizedTokenCount = Math.max(0, Math.floor(tokenCount));
+
+    if (normalizedTokenCount === this._tokenCount) {
+      return;
+    }
+
+    this._tokenCount = normalizedTokenCount;
+    await this.context.setTokenCount(this._tokenCount);
   }
 }

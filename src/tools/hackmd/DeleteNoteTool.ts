@@ -3,10 +3,14 @@ import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.js";
 import type { ApprovalManager } from "../../agent/ApprovalManager.js";
 import { handleHackMDError } from "./errorHandler.js";
 import { withRetry, shouldRetryHttpError } from "../../utils/retry.js";
+import {
+  requestMutationApproval,
+  validateNoteId,
+} from "./mutationUtils.js";
 
 interface DeleteNoteParams {
   noteId: string;
-  teamPath?: string; // Optional: if provided, deletes a team note
+  teamPath?: string;
   [key: string]: unknown;
 }
 
@@ -37,32 +41,27 @@ export class DeleteNoteTool extends Tool<DeleteNoteParams> {
   }
 
   async call(params: DeleteNoteParams): Promise<ToolResult> {
-    // Validate inputs
-    if (!params.noteId || params.noteId.trim() === '') {
-      return this.error(
-        'Note ID cannot be empty',
-        'Note ID is required',
-        'Invalid ID',
-      );
+    const noteIdError = validateNoteId(params.noteId);
+    if (noteIdError) {
+      return noteIdError;
     }
 
     const isTeamNote = Boolean(params.teamPath);
-    const actionDesc = isTeamNote
-      ? `Delete team note ${params.noteId} from team "${params.teamPath}"? This action cannot be undone.`
-      : `Delete note ${params.noteId}? This action cannot be undone.`;
+    const approvalError = await requestMutationApproval({
+      approvalManager: this.approvalManager,
+      toolName: this.name,
+      teamPath: params.teamPath,
+      personalAction: "delete_note",
+      teamAction: "delete_team_note",
+      personalDescription: `Delete note ${params.noteId}? This action cannot be undone.`,
+      teamDescription: `Delete team note ${params.noteId} from team "${params.teamPath}"? This action cannot be undone.`,
+      rejectedOutput: "Deletion cancelled by user",
+      rejectedMessage: "Deletion cancelled by user",
+      rejectedBrief: "Cancelled",
+    });
 
-    const approved = await this.approvalManager.request(
-      this.name,
-      isTeamNote ? "delete_team_note" : "delete_note",
-      actionDesc,
-    );
-
-    if (!approved) {
-      return this.error(
-        "Deletion cancelled by user",
-        "Deletion cancelled by user",
-        "Cancelled",
-      );
+    if (approvalError) {
+      return approvalError;
     }
 
     try {

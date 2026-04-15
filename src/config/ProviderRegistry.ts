@@ -47,7 +47,7 @@ export const BUILT_IN_PROVIDERS: Record<string, ProviderDefinition> = {
   },
   ollama: {
     type: 'ollama',
-    defaultBaseUrl: 'http://localhost:11434/api',
+    defaultBaseUrl: 'http://localhost:11434',
     defaultModels: [], // Discovered dynamically from API
   },
 };
