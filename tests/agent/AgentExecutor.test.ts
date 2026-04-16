@@ -219,6 +219,41 @@ describe("AgentExecutor", () => {
   });
 
   describe("event fallbacks", () => {
+    it("aborts an active execution and publishes execution_interrupted", () => {
+      const piAgent = (executor as unknown as {
+        piAgent: { abort: () => void };
+        _isExecuting: boolean;
+      }).piAgent;
+      const abortSpy = vi.spyOn(piAgent, "abort");
+      (executor as unknown as { _isExecuting: boolean })._isExecuting = true;
+
+      executor.abort();
+
+      expect(abortSpy).toHaveBeenCalledTimes(1);
+      expect(messageBus.publish).toHaveBeenCalledWith({
+        type: "execution_interrupted",
+      });
+    });
+
+    it("resolves execute cleanly when prompt aborts", async () => {
+      const piAgent = (executor as unknown as {
+        piAgent: { prompt: (input: string) => Promise<void> };
+      }).piAgent;
+      const abortError = new Error("Execution aborted");
+      abortError.name = "AbortError";
+
+      vi.spyOn(piAgent, "prompt").mockImplementation(async () => {
+        executor.abort();
+        throw abortError;
+      });
+
+      await expect(executor.execute("Stop now")).resolves.toBeUndefined();
+      expect(executor.isExecuting).toBe(false);
+      expect(messageBus.publish).toHaveBeenCalledWith({
+        type: "execution_interrupted",
+      });
+    });
+
     it("publishes final assistant text on message_end when no text delta was streamed", async () => {
       const assistantMessage: AssistantMessage = {
         role: "assistant",
@@ -287,6 +322,46 @@ describe("AgentExecutor", () => {
       expect(messageBus.publish).toHaveBeenCalledWith({
         type: "agent_failed",
         error: "No API key for provider: ollama",
+      });
+    });
+
+    it("does not sync aborted agent_end messages or publish agent_failed", async () => {
+      const addMessageSpy = vi.spyOn(context, "addMessage");
+      const abortedMessage: AssistantMessage = {
+        role: "assistant",
+        content: [{ type: "text", text: "Partial reply" }],
+        api: faux.getModel().api,
+        provider: faux.getModel().provider,
+        model: faux.getModel().id,
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: "aborted",
+        errorMessage: "Execution interrupted",
+        timestamp: Date.now(),
+      };
+
+      await (executor as unknown as {
+        handleEvent(event: {
+          type: "agent_end";
+          messages: Message[];
+        }): Promise<void>;
+      }).handleEvent({
+        type: "agent_end",
+        messages: [abortedMessage],
+      });
+
+      expect(addMessageSpy).not.toHaveBeenCalled();
+      expect(messageBus.publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: "agent_failed" }),
+      );
+      expect(messageBus.publish).toHaveBeenCalledWith({
+        type: "execution_interrupted",
       });
     });
 

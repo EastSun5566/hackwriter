@@ -26,9 +26,10 @@ describe("InteractiveShell", () => {
         contextUsage: 0.05,
         tokenCount: 100,
         currentStep: 1,
-        isHalted: false,
-        haltReason: null,
       },
+      isExecuting: false,
+      abort: vi.fn(),
+      execute: vi.fn().mockResolvedValue(undefined),
     } as Partial<AgentExecutor>;
 
     modelContext = {
@@ -150,6 +151,47 @@ describe("InteractiveShell", () => {
 
       expect((shell as any).isClosed).toBe(true);
       expect(rlCloseSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe("SIGINT handling", () => {
+    it("should abort the current run when Ctrl+C is pressed during execution", () => {
+      mockExecutor.isExecuting = true;
+      const shell = new InteractiveShell(
+        mockExecutor as AgentExecutor,
+        modelContext,
+      );
+      (shell as any).attachReadlineHandlers();
+
+      const sigintHandler = (shell as any).rl.on.mock.calls.find(
+        (call: [string, () => void]) => call[0] === "SIGINT",
+      )?.[1];
+
+      expect(sigintHandler).toBeDefined();
+
+      sigintHandler?.();
+
+      expect(mockExecutor.abort).toHaveBeenCalledTimes(1);
+      expect((shell as any).rl.close).not.toHaveBeenCalled();
+    });
+
+    it("should exit the shell when Ctrl+C is pressed while idle", () => {
+      const shell = new InteractiveShell(
+        mockExecutor as AgentExecutor,
+        modelContext,
+      );
+      const exitSpy = vi.spyOn(shell, "exit");
+      (shell as any).attachReadlineHandlers();
+
+      const sigintHandler = (shell as any).rl.on.mock.calls.find(
+        (call: [string, () => void]) => call[0] === "SIGINT",
+      )?.[1];
+
+      expect(sigintHandler).toBeDefined();
+
+      sigintHandler?.();
+
+      expect(exitSpy).toHaveBeenCalledTimes(1);
     });
   });
 

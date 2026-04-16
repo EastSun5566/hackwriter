@@ -25,6 +25,8 @@ export class InteractiveShell implements Disposable {
   private commandRegistry: CommandRegistry;
   private rl: readline.Interface;
   private isClosed = false;
+  private isSuspendingReadline = false;
+  private closeResolver?: () => void;
   private modelContext: ModelContext;
 
   constructor(executor: AgentExecutor, modelContext: ModelContext) {
@@ -51,32 +53,59 @@ export class InteractiveShell implements Disposable {
 
     // Always enter interactive mode (unless explicitly exited)
     return new Promise((resolve) => {
-      this.rl.on("line", (input) => {
-        void this.handleInput(input.trim())
-          .then(() => {
-            // Input handled successfully
-          })
-          .catch((error) => {
-            Logger.error("Shell", "handleInput error", error);
-          })
-          .finally(() => {
-            if (this.isClosed) {
-              return;
-            }
-            this.rl.setPrompt(this.getPrompt());
-            this.rl.prompt();
-          });
-      });
-
-      this.rl.on("close", () => {
-        this.isClosed = true;
-        console.log(chalk.gray("\nGoodbye! 👋"));
-        resolve();
-      });
+      this.closeResolver = resolve;
+      this.attachReadlineHandlers();
 
       this.rl.prompt();
     });
   }
+
+  private attachReadlineHandlers(): void {
+    this.rl.on("line", this.handleLine);
+    this.rl.on("SIGINT", this.handleSigint);
+    this.rl.on("close", this.handleClose);
+  }
+
+  private readonly handleLine = (input: string): void => {
+    void this.handleInput(input.trim())
+      .then(() => {
+        // Input handled successfully
+      })
+      .catch((error) => {
+        Logger.error("Shell", "handleInput error", error);
+      })
+      .finally(() => {
+        if (this.isClosed) {
+          return;
+        }
+        this.rl.setPrompt(this.getPrompt());
+        this.rl.prompt();
+      });
+  };
+
+  private readonly handleSigint = (): void => {
+    if (this.executor.isExecuting) {
+      Logger.debug("Shell", "SIGINT received during execution - aborting run");
+      this.executor.abort();
+      return;
+    }
+
+    Logger.debug("Shell", "SIGINT received while idle - exiting shell");
+    this.exit();
+  };
+
+  private readonly handleClose = (): void => {
+    if (this.isSuspendingReadline) {
+      this.isSuspendingReadline = false;
+      return;
+    }
+
+    this.isClosed = true;
+    console.log(chalk.gray("\nGoodbye! 👋"));
+    const resolve = this.closeResolver;
+    this.closeResolver = undefined;
+    resolve?.();
+  };
 
   private async handleInput(input: string): Promise<void> {
     if (!input) return;
@@ -177,6 +206,7 @@ export class InteractiveShell implements Disposable {
    * Must close and recreate because inquirer needs exclusive stdin access.
    */
   suspendReadline(): void {
+    this.isSuspendingReadline = true;
     this.rl.close();
   }
 
@@ -189,23 +219,7 @@ export class InteractiveShell implements Disposable {
       output: process.stdout,
       prompt: this.getPrompt(),
     });
-
-    // Re-attach the line handler
-    this.rl.on("line", (input) => {
-      void this.handleInput(input.trim())
-        .catch((error) => {
-          Logger.error("Shell", "handleInput error", error);
-        })
-        .finally(() => {
-          if (this.isClosed) return;
-          this.rl.setPrompt(this.getPrompt());
-          this.rl.prompt();
-        });
-    });
-
-    this.rl.on("close", () => {
-      this.isClosed = true;
-    });
+    this.attachReadlineHandlers();
   }
 
   private printWelcome(): void {

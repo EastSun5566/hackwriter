@@ -10,6 +10,7 @@ import chalk from "chalk";
 import { AgentExecutor } from "./agent/AgentExecutor.js";
 import { ConversationContext } from "./agent/ConversationContext.js";
 import { ApprovalManager } from "./agent/ApprovalManager.js";
+import { MessageBus } from "./messaging/MessageBus.js";
 import { ToolRegistry } from "./tools/base/ToolRegistry.js";
 import { ConfigurationLoader } from "./config/ConfigurationLoader.js";
 import { SessionManager } from "./session/SessionManager.js";
@@ -93,177 +94,209 @@ async function runAgent(options: {
   debug?: boolean;
   model?: string;
 }): Promise<void> {
+  let context: ConversationContext | undefined;
+  let shell: InteractiveShell | undefined;
+  let runtimeMcpClient: { dispose(): Promise<void> } | undefined;
+
   if (options.debug) {
     Logger.setLevel("debug");
     Logger.info("CLI", "Debug mode enabled");
   }
 
-  const config = await ConfigurationLoader.load();
-  Logger.debug(
-    "CLI",
-    `Config loaded: ${config.defaultModel || "no default"}, ${Object.keys(config.models).length} model(s)`,
-  );
-
-  // Check if we have discovered providers from environment
-  const hasDiscoveredProviders = Object.keys(config.providers).some(
-    (name) => config.providers[name].apiKey
-  );
-
-  const needsSetup =
-    !config.services.hackmd?.apiToken ||
-    (!config.defaultModel && !options.model && !hasDiscoveredProviders);
-
-  if (needsSetup) {
-    console.log(
-      chalk.yellow("⚙️  Configuration needed. Starting setup wizard...\n"),
+  try {
+    const config = await ConfigurationLoader.load();
+    Logger.debug(
+      "CLI",
+      `Config loaded: ${config.defaultModel || "no default"}, ${Object.keys(config.models).length} model(s)`,
     );
-    await setupCommand(true);
 
-    const newConfig = await ConfigurationLoader.load();
-
-    if (!newConfig.services.hackmd?.apiToken || !newConfig.defaultModel) {
-      console.log(chalk.gray("\nSetup cancelled or incomplete."));
-      process.exit(0);
-    }
-
-    Object.assign(config, newConfig);
-  }
-
-  const workDir = process.cwd();
-  const session = options.continue
-    ? ((await SessionManager.continue(workDir)) ??
-      (await SessionManager.create(workDir)))
-    : await SessionManager.create(workDir);
-  Logger.debug("CLI", `Session: ${session.id.slice(0, 8)}...`);
-
-  const modelName = options.model ?? config.defaultModel;
-  const modelConfig = config.models[modelName];
-  
-  if (!modelConfig) {
-    throw ErrorFactory.configuration(
-      `Model "${modelName}" not found in configuration. Available models: ${Object.keys(config.models).join(', ')}`,
+    // Check if we have discovered providers from environment
+    const hasDiscoveredProviders = Object.keys(config.providers).some(
+      (name) => config.providers[name].apiKey
     );
-  }
-  
-  Logger.debug("CLI", `Model: ${modelConfig.provider}/${modelConfig.model}`);
-  
-  const providerConfig = config.providers[modelConfig.provider];
-  if (!providerConfig) {
-    throw ErrorFactory.configuration(
-      `Provider configuration '${modelConfig.provider}' is missing`,
-      `Please run 'hackwriter setup' to configure the provider`
-    );
-  }
-  
-  const languageModel = buildLanguageModel(providerConfig, modelConfig.model, modelConfig.maxContextSize);
 
-  if (!config.services.hackmd) {
-    throw ErrorFactory.configuration(
-      "HackMD service configuration is missing",
-      "Please run 'hackwriter setup' to configure HackMD API token"
-    );
-  }
+    const needsSetup =
+      !config.services.hackmd?.apiToken ||
+      (!config.defaultModel && !options.model && !hasDiscoveredProviders);
 
-  const approvalManager = new ApprovalManager(undefined, options.yolo ?? false);
-  const toolRegistry = new ToolRegistry();
+    if (needsSetup) {
+      console.log(
+        chalk.yellow("⚙️  Configuration needed. Starting setup wizard...\n"),
+      );
+      await setupCommand(true);
 
-  const hackmdConfig = config.services.hackmd;
-  const localHackMDTools = createLocalHackMDTools(
-    hackmdConfig.apiToken,
-    approvalManager,
-  );
-  const localHackMDToolsByName = new Map(
-    localHackMDTools.map((tool) => [tool.name, tool] as const),
-  );
-  let usedMcp = false;
+      const newConfig = await ConfigurationLoader.load();
 
-  // Try MCP if mcpBaseUrl is configured
-  if (hackmdConfig.mcpBaseUrl) {
-    Logger.info("CLI", "Trying Remote MCP mode...");
-    
-    // Dynamic import to avoid loading MCP SDK when not needed
-    const { MCPClient, MCPToolAdapter } = await import("./mcp/index.js");
-    const { buildHackMDMcpApproval, buildHackMDMcpFallback } = await import(
-      "./mcp/HackMDMcpToolPolicies.js"
-    );
-    
-    const mcpClient = new MCPClient({
-      serverUrl: hackmdConfig.mcpBaseUrl,
-      apiToken: hackmdConfig.apiToken,
-    });
-
-    try {
-      await mcpClient.connect();
-      
-      // Register MCP tools
-      const mcpTools = await mcpClient.listTools();
-      for (const toolDef of mcpTools) {
-        toolRegistry.register(
-          new MCPToolAdapter(
-            mcpClient,
-            toolDef,
-            buildHackMDMcpFallback(toolDef.name, localHackMDToolsByName),
-            buildHackMDMcpApproval(toolDef.name, approvalManager),
-          ),
-        );
-        Logger.debug("CLI", `Registered MCP tool: ${toolDef.name}`);
+      if (!newConfig.services.hackmd?.apiToken || !newConfig.defaultModel) {
+        console.log(chalk.gray("\nSetup cancelled or incomplete."));
+        process.exit(0);
       }
 
-      Logger.info("CLI", `Connected to MCP server with ${mcpTools.length} tools`);
-      usedMcp = true;
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      console.warn(chalk.red(`Failed to connect to MCP server: ${msg}`));
-      console.warn(chalk.yellow("Falling back use HackMD API"));
+      Object.assign(config, newConfig);
+    }
+
+    const workDir = process.cwd();
+    const session = options.continue
+      ? ((await SessionManager.continue(workDir)) ??
+        (await SessionManager.create(workDir)))
+      : await SessionManager.create(workDir);
+    Logger.debug("CLI", `Session: ${session.id.slice(0, 8)}...`);
+
+    const modelName = options.model ?? config.defaultModel;
+    const modelConfig = config.models[modelName];
+    
+    if (!modelConfig) {
+      throw ErrorFactory.configuration(
+        `Model "${modelName}" not found in configuration. Available models: ${Object.keys(config.models).join(', ')}`,
+      );
+    }
+    
+    Logger.debug("CLI", `Model: ${modelConfig.provider}/${modelConfig.model}`);
+    
+    const providerConfig = config.providers[modelConfig.provider];
+    if (!providerConfig) {
+      throw ErrorFactory.configuration(
+        `Provider configuration '${modelConfig.provider}' is missing`,
+        `Please run 'hackwriter setup' to configure the provider`
+      );
+    }
+    
+    const languageModel = buildLanguageModel(providerConfig, modelConfig.model, modelConfig.maxContextSize);
+
+    if (!config.services.hackmd) {
+      throw ErrorFactory.configuration(
+        "HackMD service configuration is missing",
+        "Please run 'hackwriter setup' to configure HackMD API token"
+      );
+    }
+
+    const approvalManager = new ApprovalManager(undefined, options.yolo ?? false);
+    const toolRegistry = new ToolRegistry();
+
+    const hackmdConfig = config.services.hackmd;
+    const localHackMDTools = createLocalHackMDTools(
+      hackmdConfig.apiToken,
+      approvalManager,
+    );
+    const localHackMDToolsByName = new Map(
+      localHackMDTools.map((tool) => [tool.name, tool] as const),
+    );
+    let usedMcp = false;
+
+    // Try MCP if mcpBaseUrl is configured
+    if (hackmdConfig.mcpBaseUrl) {
+      Logger.info("CLI", "Trying Remote MCP mode...");
+      
+      // Dynamic import to avoid loading MCP SDK when not needed
+      const { MCPClient, MCPToolAdapter } = await import("./mcp/index.js");
+      const { buildHackMDMcpApproval, buildHackMDMcpFallback } = await import(
+        "./mcp/HackMDMcpToolPolicies.js"
+      );
+      
+      const mcpClient = new MCPClient({
+        serverUrl: hackmdConfig.mcpBaseUrl,
+        apiToken: hackmdConfig.apiToken,
+      });
+      runtimeMcpClient = mcpClient;
+
+      try {
+        await mcpClient.connect();
+        
+        // Register MCP tools
+        const mcpTools = await mcpClient.listTools();
+        for (const toolDef of mcpTools) {
+          toolRegistry.register(
+            new MCPToolAdapter(
+              mcpClient,
+              toolDef,
+              buildHackMDMcpFallback(toolDef.name, localHackMDToolsByName),
+              buildHackMDMcpApproval(toolDef.name, approvalManager),
+            ),
+          );
+          Logger.debug("CLI", `Registered MCP tool: ${toolDef.name}`);
+        }
+
+        Logger.info("CLI", `Connected to MCP server with ${mcpTools.length} tools`);
+        usedMcp = true;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.warn(chalk.red(`Failed to connect to MCP server: ${msg}`));
+        console.warn(chalk.yellow("Falling back use HackMD API"));
+      }
+    }
+
+    // Use local HackMD API if MCP not used
+    if (!usedMcp) {
+      Logger.info("CLI", "Using Local HackMD API mode");
+      registerLocalHackMDTools(toolRegistry, localHackMDTools);
+    }
+
+    // File tools (always local)
+    toolRegistry.register(new ReadFileTool());
+    toolRegistry.register(new WriteFileTool(approvalManager));
+    toolRegistry.register(new ListFilesTool());
+
+    Logger.debug("CLI", `Registered ${toolRegistry.getAll().length} tools`);
+
+    // Create Agent
+    const agent: Agent = {
+      name: "HackMD Agent",
+      modelName: modelConfig.model,
+      maxContextSize: modelConfig.maxContextSize,
+      systemPrompt: buildSystemPrompt(workDir),
+      toolRegistry,
+      apiKey: providerConfig.apiKey,
+    };
+
+    // Create conversation context
+    context = new ConversationContext(session.historyFile);
+    await context.loadFromDisk();
+
+    // Create executor
+    const executor = new AgentExecutor(
+      agent,
+      context,
+      languageModel,
+    );
+
+    shell = new InteractiveShell(executor, {
+      currentModelName: options.model ?? config.defaultModel,
+      config,
+      context,
+      toolRegistry,
+      systemPrompt: agent.systemPrompt,
+    });
+
+    // Connect approval manager to shell's readline to prevent stdin conflicts
+    approvalManager.setMainRl(shell.getReadline());
+
+    await shell.start(options.command);
+  } finally {
+    shell?.dispose();
+    MessageBus.getInstance().dispose();
+
+    if (context) {
+      try {
+        await context.close();
+      } catch (error) {
+        Logger.warn(
+          "CLI",
+          `Failed to close conversation context: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    if (runtimeMcpClient) {
+      try {
+        await runtimeMcpClient.dispose();
+      } catch (error) {
+        Logger.warn(
+          "CLI",
+          `Failed to dispose MCP client: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
   }
-
-  // Use local HackMD API if MCP not used
-  if (!usedMcp) {
-    Logger.info("CLI", "Using Local HackMD API mode");
-    registerLocalHackMDTools(toolRegistry, localHackMDTools);
-  }
-
-  // File tools (always local)
-  toolRegistry.register(new ReadFileTool());
-  toolRegistry.register(new WriteFileTool(approvalManager));
-  toolRegistry.register(new ListFilesTool());
-
-  Logger.debug("CLI", `Registered ${toolRegistry.getAll().length} tools`);
-
-  // Create Agent
-  const agent: Agent = {
-    name: "HackMD Agent",
-    modelName: modelConfig.model,
-    maxContextSize: modelConfig.maxContextSize,
-    systemPrompt: buildSystemPrompt(workDir),
-    toolRegistry,
-    apiKey: providerConfig.apiKey,
-  };
-
-  // Create conversation context
-  const context = new ConversationContext(session.historyFile);
-  await context.loadFromDisk();
-
-  // Create executor
-  const executor = new AgentExecutor(
-    agent,
-    context,
-    languageModel,
-  );
-
-  const shell = new InteractiveShell(executor, {
-    currentModelName: options.model ?? config.defaultModel,
-    config,
-    context,
-    toolRegistry,
-    systemPrompt: agent.systemPrompt,
-  });
-
-  // Connect approval manager to shell's readline to prevent stdin conflicts
-  approvalManager.setMainRl(shell.getReadline());
-
-  await shell.start(options.command);
 }
 
 function buildSystemPrompt(workDir: string): string {
@@ -314,10 +347,6 @@ function setupCleanupHandlers(): void {
 
   // Register cleanup handlers
   process.on('exit', cleanup);
-  process.on('SIGINT', () => {
-    cleanup();
-    process.exit(0);
-  });
   process.on('SIGTERM', () => {
     cleanup();
     process.exit(0);

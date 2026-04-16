@@ -54,6 +54,11 @@ export class OutputRenderer {
         this.resetStepState();
         break;
 
+      case 'execution_interrupted':
+        this.resetStepState();
+        console.log(chalk.yellow('\n⚠ Interrupted.'));
+        break;
+
       case 'text_chunk':
         this.hasRenderedTextInCurrentStep = true;
         this.stopSpinner();

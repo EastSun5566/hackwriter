@@ -3,6 +3,7 @@ import type { ToolResult } from '../tools/base/Tool.js';
 export type AgentMessage =
   | { type: 'step_started'; stepNumber: number }
   | { type: 'step_completed' }
+  | { type: 'execution_interrupted' }
   | { type: 'text_chunk'; text: string }
   | { type: 'agent_failed'; error: string }
   | { type: 'tool_call_started'; toolCall: { id: string; name: string } }

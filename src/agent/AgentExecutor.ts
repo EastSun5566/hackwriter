@@ -137,6 +137,10 @@ function getReportedTokenCount(message: PiAssistantMessage): number {
   return usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
 }
 
+function isAbortError(error: unknown): error is Error {
+  return error instanceof Error && error.name === "AbortError";
+}
+
 export class AgentExecutor {
   private piAgent: PiAgent;
   private context: ConversationContext;
@@ -146,6 +150,8 @@ export class AgentExecutor {
   private readonly toolsForEstimation: ToolLike[];
   private _tokenCount = 0;
   private _stepCount = 0;
+  private _isExecuting = false;
+  private _abortRequested = false;
   private sawUsageThisRun = false;
   private streamedAssistantText = new Map<string, number>();
 
@@ -199,16 +205,45 @@ export class AgentExecutor {
     };
   }
 
+  get isExecuting(): boolean {
+    return this._isExecuting;
+  }
+
+  abort(): void {
+    if (!this._isExecuting || this._abortRequested) {
+      return;
+    }
+
+    Logger.debug("AgentExecutor", "Aborting active execution");
+    this._abortRequested = true;
+    this.piAgent.abort();
+    this.messageBus.publish({ type: "execution_interrupted" });
+  }
+
   async execute(userInput: string): Promise<void> {
     Logger.debug("AgentExecutor", "Starting execution", {
       input: userInput.slice(0, 100),
     });
+    this._isExecuting = true;
+    this._abortRequested = false;
     this.sawUsageThisRun = false;
-    await this.piAgent.prompt(userInput);
-    Logger.debug("AgentExecutor", "Execution completed", {
-      finalTokens: this._tokenCount,
-      totalSteps: this._stepCount,
-    });
+
+    try {
+      await this.piAgent.prompt(userInput);
+      Logger.debug("AgentExecutor", "Execution completed", {
+        finalTokens: this._tokenCount,
+        totalSteps: this._stepCount,
+      });
+    } catch (error) {
+      if (isAbortError(error)) {
+        Logger.debug("AgentExecutor", "Execution aborted");
+        return;
+      }
+
+      throw error;
+    } finally {
+      this._isExecuting = false;
+    }
   }
 
   private async handleEvent(event: AgentEvent): Promise<void> {
@@ -295,6 +330,18 @@ export class AgentExecutor {
       }
 
       case "agent_end": {
+        const isAbortedRun = this.isAbortedRun(event.messages as Message[]);
+
+        if (isAbortedRun) {
+          if (!this._abortRequested) {
+            this._abortRequested = true;
+            this.messageBus.publish({ type: "execution_interrupted" });
+          }
+
+          this.streamedAssistantText.clear();
+          break;
+        }
+
         const assistantError = event.messages.find(
           (message): message is PiAssistantMessage =>
             message.role === "assistant" &&
@@ -331,6 +378,13 @@ export class AgentExecutor {
 
   private getAssistantMessageKey(message: PiAssistantMessage): string {
     return message.responseId ?? `${message.model}:${message.timestamp}`;
+  }
+
+  private isAbortedRun(messages: Message[]): boolean {
+    return messages.some(
+      (message): message is PiAssistantMessage =>
+        message.role === "assistant" && message.stopReason === "aborted",
+    );
   }
 
   private publishRemainingAssistantText(message: PiAssistantMessage): void {
