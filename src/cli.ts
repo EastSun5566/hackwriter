@@ -7,11 +7,10 @@ import { fileURLToPath } from "url";
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { API } from "@hackmd/api";
 import { AgentExecutor } from "./agent/AgentExecutor.js";
 import { ConversationContext } from "./agent/ConversationContext.js";
 import { ApprovalManager } from "./agent/ApprovalManager.js";
-import { ToolRegistry, type ToolLike } from "./tools/base/ToolRegistry.js";
+import { ToolRegistry } from "./tools/base/ToolRegistry.js";
 import { ConfigurationLoader } from "./config/ConfigurationLoader.js";
 import { SessionManager } from "./session/SessionManager.js";
 import { InteractiveShell } from "./ui/shell/InteractiveShell.js";
@@ -21,19 +20,10 @@ import { Logger } from "./utils/Logger.js";
 import { ErrorFactory } from "./utils/ErrorTypes.js";
 import { SensitiveDataRedactor } from "./utils/SensitiveDataRedactor.js";
 import type { Agent } from "./agent/Agent.js";
-import type { ToolResult } from "./tools/base/Tool.js";
 
 import {
-  ListNotesTool,
-  ReadNoteTool,
-  CreateNoteTool,
-  UpdateNoteTool,
-  DeleteNoteTool,
-  GetUserInfoTool,
-  ListTeamsTool,
-  GetHistoryTool,
-  SearchNotesTool,
-  ExportNoteTool,
+  createLocalHackMDTools,
+  registerLocalHackMDTools,
 } from "./tools/hackmd/index.js";
 
 import {
@@ -193,6 +183,9 @@ async function runAgent(options: {
     
     // Dynamic import to avoid loading MCP SDK when not needed
     const { MCPClient, MCPToolAdapter } = await import("./mcp/index.js");
+    const { buildHackMDMcpApproval, buildHackMDMcpFallback } = await import(
+      "./mcp/HackMDMcpToolPolicies.js"
+    );
     
     const mcpClient = new MCPClient({
       serverUrl: hackmdConfig.mcpBaseUrl,
@@ -210,6 +203,7 @@ async function runAgent(options: {
             mcpClient,
             toolDef,
             buildHackMDMcpFallback(toolDef.name, localHackMDToolsByName),
+            buildHackMDMcpApproval(toolDef.name, approvalManager),
           ),
         );
         Logger.debug("CLI", `Registered MCP tool: ${toolDef.name}`);
@@ -290,78 +284,6 @@ Guidelines:
 - Combine tools for complex operations (e.g., upload local file = read_file + create_note)
 
 Working directory: ${workDir}`;
-}
-
-function createLocalHackMDTools(
-  apiToken: string,
-  approvalManager: ApprovalManager,
-): ToolLike[] {
-  const hackmdClient = new API(apiToken);
-
-  return [
-    new ListNotesTool(hackmdClient),
-    new ReadNoteTool(hackmdClient),
-    new CreateNoteTool(hackmdClient, approvalManager),
-    new UpdateNoteTool(hackmdClient, approvalManager),
-    new DeleteNoteTool(hackmdClient, approvalManager),
-    new GetUserInfoTool(hackmdClient),
-    new ListTeamsTool(hackmdClient),
-    new GetHistoryTool(hackmdClient),
-    new SearchNotesTool(hackmdClient),
-    new ExportNoteTool(hackmdClient),
-  ];
-}
-
-function registerLocalHackMDTools(
-  toolRegistry: ToolRegistry,
-  tools: ToolLike[],
-): void {
-  for (const tool of tools) {
-    toolRegistry.register(tool);
-  }
-
-  Logger.debug("CLI", "Registered local HackMD tools");
-}
-
-function buildHackMDMcpFallback(
-  mcpToolName: string,
-  localHackMDToolsByName: Map<string, ToolLike>,
-): ConstructorParameters<
-  typeof import("./mcp/MCPToolAdapter.js").MCPToolAdapter
->[2] {
-  switch (mcpToolName) {
-    case "get-note": {
-      const localReadTool = localHackMDToolsByName.get("read_note");
-      if (!localReadTool) {
-        return undefined;
-      }
-
-      return {
-        tool: localReadTool,
-        shouldFallback: (_params, _response, result) =>
-          isLikelyTruncatedHackMDNoteResult(result),
-      };
-    }
-
-    default:
-      return undefined;
-  }
-}
-
-function isLikelyTruncatedHackMDNoteResult(result: ToolResult): boolean {
-  if (!result.ok) {
-    return false;
-  }
-
-  const nonEmptyLines = result.output
-    .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
-  return (
-    nonEmptyLines.length === 1 &&
-    /^#{1,6}\s/u.test(nonEmptyLines[0])
-  );
 }
 
 /**

@@ -1,10 +1,4 @@
-export { ListNotesTool } from "./ListNotesTool.js";
-export { ReadNoteTool } from "./ReadNoteTool.js";
-export { CreateNoteTool } from "./CreateNoteTool.js";
-export { UpdateNoteTool } from "./UpdateNoteTool.js";
-export { DeleteNoteTool } from "./DeleteNoteTool.js";
-export { GetUserInfoTool } from "./GetUserInfoTool.js";
-export { ListTeamsTool } from "./ListTeamsTool.js";
-export { GetHistoryTool } from "./GetHistoryTool.js";
-export { SearchNotesTool } from "./SearchNotesTool.js";
-export { ExportNoteTool } from "./ExportNoteTool.js";
+export {
+	createLocalHackMDTools,
+	registerLocalHackMDTools,
+} from "./LocalHackMDTools.js";

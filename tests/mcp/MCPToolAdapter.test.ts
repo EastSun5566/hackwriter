@@ -58,6 +58,77 @@ describe("MCPToolAdapter", () => {
     expect(result.output).toBe("Success result");
   });
 
+  it("should request approval before calling remote mutation tools", async () => {
+    mockClient.callTool.mockResolvedValue({
+      content: [{ type: "text", text: "Created" }],
+      isError: false,
+    });
+
+    const approval = {
+      request: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const adapter = new MCPToolAdapter(
+      mockClient as any,
+      { name: "create-note" },
+      undefined,
+      approval,
+    );
+
+    const params = { title: "New note", content: "Hello" };
+    const result = await adapter.call(params);
+
+    expect(approval.request).toHaveBeenCalledWith(params);
+    expect(mockClient.callTool).toHaveBeenCalledWith("create-note", params);
+    expect(result.ok).toBe(true);
+  });
+
+  it("should skip remote call when approval rejects the mutation", async () => {
+    const rejectedResult = {
+      ok: false,
+      output: "Operation rejected by user",
+      message: "Operation rejected by user",
+      brief: "Rejected",
+    };
+
+    const approval = {
+      request: vi.fn().mockResolvedValue(rejectedResult),
+    };
+
+    const adapter = new MCPToolAdapter(
+      mockClient as any,
+      { name: "delete-note" },
+      undefined,
+      approval,
+    );
+
+    const result = await adapter.call({ noteId: "abc" });
+
+    expect(approval.request).toHaveBeenCalledWith({ noteId: "abc" });
+    expect(mockClient.callTool).not.toHaveBeenCalled();
+    expect(result).toEqual(rejectedResult);
+  });
+
+  it("should fail closed when the approval hook throws", async () => {
+    const approval = {
+      request: vi.fn().mockRejectedValue(new Error("Approval provider offline")),
+    };
+
+    const adapter = new MCPToolAdapter(
+      mockClient as any,
+      { name: "update-note" },
+      undefined,
+      approval,
+    );
+
+    const result = await adapter.call({ noteId: "abc", content: "Updated" });
+
+    expect(mockClient.callTool).not.toHaveBeenCalled();
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("Approval failed");
+    expect(result.output).toContain("Approval provider offline");
+  });
+
   it("should handle error responses", async () => {
     mockClient.callTool.mockResolvedValue({
       content: [{ type: "text", text: "Error message" }],

@@ -12,6 +12,12 @@ export interface MCPToolFallback {
   ) => Promise<boolean> | boolean;
 }
 
+export interface MCPToolApproval {
+  request(
+    params: Record<string, unknown>,
+  ): Promise<ToolResult | undefined> | ToolResult | undefined;
+}
+
 /**
  * Adapter that wraps MCP remote tools to match our local Tool interface
  */
@@ -24,6 +30,7 @@ export class MCPToolAdapter implements ToolLike {
     private mcpClient: MCPClient,
     private toolDef: MCPToolDefinition,
     private fallback?: MCPToolFallback,
+    private approval?: MCPToolApproval,
   ) {
     this.name = toolDef.name;
     this.description = toolDef.description ?? "";
@@ -34,6 +41,11 @@ export class MCPToolAdapter implements ToolLike {
   }
 
   async call(params: Record<string, unknown>): Promise<ToolResult> {
+    const approvalResult = await this.requestApproval(params);
+    if (approvalResult) {
+      return approvalResult;
+    }
+
     try {
       Logger.debug("MCPToolAdapter", `Calling remote tool: ${this.name}`);
 
@@ -76,6 +88,31 @@ export class MCPToolAdapter implements ToolLike {
         output: message,
         message,
         brief: "Error",
+      };
+    }
+  }
+
+  private async requestApproval(
+    params: Record<string, unknown>,
+  ): Promise<ToolResult | null> {
+    if (!this.approval) {
+      return null;
+    }
+
+    try {
+      return (await this.approval.request(params)) ?? null;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.error(
+        "MCPToolAdapter",
+        `Approval check failed for ${this.name}: ${message}`,
+      );
+
+      return {
+        ok: false,
+        output: `Approval failed: ${message}`,
+        message: `Approval failed: ${message}`,
+        brief: "Approval failed",
       };
     }
   }
