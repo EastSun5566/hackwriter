@@ -28,6 +28,7 @@ function getGuidelinesSection(wikiToolsEnabled: boolean): string {
 - Prefer wiki_search_index before claiming something is new to this session
 - For deeper retrieval, use wiki_read_page or wiki_read_pages with noteIds from wiki_search_index
 - Focus on answering the user first; durable wiki writes happen after the response is complete
+- Once hackwiki is enabled, the post-turn memory pass may save durable wiki updates automatically without another approval prompt
 - Make the final answer clear and self-contained so a post-turn memory pass can save durable knowledge if it is valuable
 - If a durable wiki memory section is present below, treat it as persistent background context for this session`;
   }

@@ -31,6 +31,7 @@ describe("SystemPrompt", () => {
     expect(prompt).toContain("wiki_search_index");
     expect(prompt).not.toContain("wiki_create_page");
     expect(prompt).toContain("Focus on answering the user first; durable wiki writes happen after the response is complete");
+    expect(prompt).toContain("without another approval prompt");
     expect(prompt).not.toContain("list_notes, read_note, create_note");
   });
 });

@@ -5,6 +5,7 @@ import { buildLanguageModel } from '../../agent/ModelFactory.js';
 import type { ApprovalManager } from '../../agent/ApprovalManager.js';
 import type { Configuration } from '../../config/Configuration.js';
 import { Logger } from '../../utils/Logger.js';
+import type { ToolResult } from '../base/Tool.js';
 import {
   WikiCreatePageTool,
   WikiUpdatePageTool,
@@ -67,6 +68,8 @@ export interface PostTurnMemoryContext {
   userInput: string;
   messages: Message[];
 }
+
+type PersistedMemoryAction = 'created' | 'updated';
 
 function extractAssistantText(message: AssistantMessage): string {
   return message.content
@@ -215,6 +218,28 @@ function resolveModelApiKey(config: Configuration, currentModelName: string): st
   return undefined;
 }
 
+function extractNoteId(result: ToolResult): string | undefined {
+  if (!result.json || typeof result.json !== 'object') {
+    return undefined;
+  }
+
+  const noteId = (result.json as { noteId?: unknown }).noteId;
+  return typeof noteId === 'string' && noteId.trim().length > 0
+    ? noteId
+    : undefined;
+}
+
+function formatPersistenceNotice(
+  action: PersistedMemoryAction,
+  title: string,
+  noteId?: string,
+): string {
+  const detail = action === 'created' ? 'created' : 'updated';
+  const noteIdSuffix = noteId ? ` · ${noteId}` : '';
+
+  return `💾 Auto-saved wiki memory (${detail}): ${title}${noteIdSuffix}`;
+}
+
 export class HackwikiPostTurnMemoryWriter {
   private readonly createTool: WikiCreatePageTool;
   private readonly updateTool: WikiUpdatePageTool;
@@ -223,8 +248,12 @@ export class HackwikiPostTurnMemoryWriter {
     private readonly wiki: Wiki,
     approvalManager: ApprovalManager,
   ) {
-    this.createTool = new WikiCreatePageTool(wiki, approvalManager);
-    this.updateTool = new WikiUpdatePageTool(wiki, approvalManager);
+    this.createTool = new WikiCreatePageTool(wiki, approvalManager, {
+      skipApproval: true,
+    });
+    this.updateTool = new WikiUpdatePageTool(wiki, approvalManager, {
+      skipApproval: true,
+    });
   }
 
   async maybePersistTurn(context: PostTurnMemoryContext): Promise<void> {
@@ -270,7 +299,15 @@ export class HackwikiPostTurnMemoryWriter {
         });
 
         if (result.ok) {
-          console.log(chalk.gray(`💾 Updated wiki memory: ${persistableDraft.title}`));
+          console.log(
+            chalk.gray(
+              formatPersistenceNotice(
+                'updated',
+                persistableDraft.title,
+                exactMatch.noteId,
+              ),
+            ),
+          );
         }
 
         return;
@@ -284,7 +321,15 @@ export class HackwikiPostTurnMemoryWriter {
       });
 
       if (result.ok) {
-        console.log(chalk.gray(`💾 Saved to wiki memory: ${persistableDraft.title}`));
+        console.log(
+          chalk.gray(
+            formatPersistenceNotice(
+              'created',
+              persistableDraft.title,
+              extractNoteId(result),
+            ),
+          ),
+        );
       }
     } catch (error) {
       Logger.warn(

@@ -95,10 +95,10 @@ export async function inspectHackwikiBootstrapState(
 async function promptForHackwikiBootstrapChoice(): Promise<HackwikiBootstrapChoice> {
   return select({
     message:
-      'Hackwiki durable memory is available. The first enable will create 3 reserved HackMD notes ([hackwiki] schema/index/log). How would you like to proceed?',
+      'Hackwiki durable memory is available. The first enable will create 3 reserved HackMD notes ([hackwiki] schema/index/log). Once enabled, HackWriter may automatically save or update durable memory after answers complete. How would you like to proceed?',
     choices: [
       {
-        name: 'Enable once',
+        name: 'Enable once (allow automatic post-turn saves this session)',
         value: 'enable_once',
       },
       {

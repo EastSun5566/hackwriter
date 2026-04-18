@@ -4,8 +4,10 @@ import type { Wiki } from "hackwiki";
 import { HackwikiPostTurnMemoryWriter } from "../../../src/tools/hackwiki/PostTurnMemoryWriter.js";
 import { createMockApprovalManager } from "../../fixtures/mockApprovalManager.ts";
 
-const completeMock = vi.fn();
-const buildLanguageModelMock = vi.fn(() => ({ id: "test-model" }));
+const { completeMock, buildLanguageModelMock } = vi.hoisted(() => ({
+  completeMock: vi.fn(),
+  buildLanguageModelMock: vi.fn(() => ({ id: "test-model" })),
+}));
 
 vi.mock("@mariozechner/pi-ai", () => ({
   complete: completeMock,
@@ -106,8 +108,11 @@ describe("HackwikiPostTurnMemoryWriter", () => {
       "# RAG\n\nGrounding by retrieval.",
       "Retrieval-Augmented Generation",
     );
+    expect(mockApproval.request).not.toHaveBeenCalled();
     expect(mockWiki.updatePage).not.toHaveBeenCalled();
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Saved to wiki memory: RAG"));
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Auto-saved wiki memory (created): RAG · note-1"),
+    );
   });
 
   it("updates an existing wiki page when the title already exists", async () => {
@@ -169,12 +174,10 @@ describe("HackwikiPostTurnMemoryWriter", () => {
       "note-1",
       expect.stringContaining("## Update ("),
     );
-    expect(mockApproval.request).toHaveBeenCalledWith(
-      "wiki_update_page",
-      "wiki_update_page",
-      expect.stringContaining("RAG (note-1)"),
+    expect(mockApproval.request).not.toHaveBeenCalled();
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Auto-saved wiki memory (updated): RAG · note-1"),
     );
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Updated wiki memory: RAG"));
   });
 
   it("skips persistence when the answer is not worth saving", async () => {
@@ -224,6 +227,7 @@ describe("HackwikiPostTurnMemoryWriter", () => {
     expect(mockWiki.searchIndex).not.toHaveBeenCalled();
     expect(mockWiki.createPage).not.toHaveBeenCalled();
     expect(mockWiki.updatePage).not.toHaveBeenCalled();
+    expect(mockApproval.request).not.toHaveBeenCalled();
     expect(consoleSpy).not.toHaveBeenCalled();
   });
 });

@@ -195,6 +195,34 @@ describe("Hackwiki tools", () => {
     expect(mockWiki.createPage).not.toHaveBeenCalled();
   });
 
+  it("can create a wiki page without approval in auto-save mode", async () => {
+    const tool = new WikiCreatePageTool(
+      mockWiki as unknown as Wiki,
+      mockApproval as never,
+      { skipApproval: true },
+    );
+    mockWiki.createPage.mockResolvedValue({
+      noteId: "note-1",
+      indexSize: 3,
+    });
+
+    const result = await tool.call({
+      type: "concept",
+      title: "RAG",
+      content: "# RAG\n\nGrounding by retrieval",
+      summary: "Retrieval-Augmented Generation",
+    });
+
+    expect(mockApproval.request).not.toHaveBeenCalled();
+    expect(mockWiki.createPage).toHaveBeenCalledWith(
+      "concept",
+      "RAG",
+      "# RAG\n\nGrounding by retrieval",
+      "Retrieval-Augmented Generation",
+    );
+    expect(result.ok).toBe(true);
+  });
+
   it("updates a wiki page after approval", async () => {
     const tool = new WikiUpdatePageTool(
       mockWiki as unknown as Wiki,
@@ -219,5 +247,27 @@ describe("Hackwiki tools", () => {
     );
     expect(result.ok).toBe(true);
     expect(result.output).toContain("Wiki page updated successfully");
+  });
+
+  it("can update a wiki page without approval in auto-save mode", async () => {
+    const tool = new WikiUpdatePageTool(
+      mockWiki as unknown as Wiki,
+      mockApproval as never,
+      { skipApproval: true },
+    );
+    mockWiki.updatePage.mockResolvedValue(undefined);
+
+    const result = await tool.call({
+      noteId: "note-1",
+      content: "# RAG\n\nUpdated content",
+      title: "RAG",
+    });
+
+    expect(mockApproval.request).not.toHaveBeenCalled();
+    expect(mockWiki.updatePage).toHaveBeenCalledWith(
+      "note-1",
+      "# RAG\n\nUpdated content",
+    );
+    expect(result.ok).toBe(true);
   });
 });

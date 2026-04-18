@@ -45,7 +45,12 @@ interface WikiCreatePageParams {
 interface WikiUpdatePageParams {
   noteId: string;
   content: string;
+  title?: string;
   [key: string]: unknown;
+}
+
+interface WikiWriteToolOptions {
+  skipApproval?: boolean;
 }
 
 function errorResult(output: string, message: string, brief: string): ToolResult {
@@ -387,6 +392,7 @@ export class WikiCreatePageTool extends Tool<WikiCreatePageParams> {
   constructor(
     private wiki: Wiki,
     private approvalManager: ApprovalManager,
+    private options?: WikiWriteToolOptions,
   ) {
     super();
   }
@@ -417,17 +423,19 @@ export class WikiCreatePageTool extends Tool<WikiCreatePageParams> {
       return summaryError;
     }
 
-    const approvalError = await requestMutationApproval({
-      approvalManager: this.approvalManager,
-      toolName: this.name,
-      personalAction: "wiki_create_page",
-      teamAction: "wiki_create_page",
-      personalDescription: `Create wiki page "${params.title}" (${params.type})`,
-      teamDescription: `Create wiki page "${params.title}" (${params.type})`,
-    });
+    if (!this.options?.skipApproval) {
+      const approvalError = await requestMutationApproval({
+        approvalManager: this.approvalManager,
+        toolName: this.name,
+        personalAction: "wiki_create_page",
+        teamAction: "wiki_create_page",
+        personalDescription: `Create wiki page "${params.title}" (${params.type})`,
+        teamDescription: `Create wiki page "${params.title}" (${params.type})`,
+      });
 
-    if (approvalError) {
-      return approvalError;
+      if (approvalError) {
+        return approvalError;
+      }
     }
 
     try {
@@ -490,6 +498,7 @@ export class WikiUpdatePageTool extends Tool<WikiUpdatePageParams> {
   constructor(
     private wiki: Wiki,
     private approvalManager: ApprovalManager,
+    private options?: WikiWriteToolOptions,
   ) {
     super();
   }
@@ -515,17 +524,19 @@ export class WikiUpdatePageTool extends Tool<WikiUpdatePageParams> {
         ? `${params.title} (${params.noteId})`
         : params.noteId;
 
-    const approvalError = await requestMutationApproval({
-      approvalManager: this.approvalManager,
-      toolName: this.name,
-      personalAction: "wiki_update_page",
-      teamAction: "wiki_update_page",
-      personalDescription: `Update wiki page ${targetLabel}`,
-      teamDescription: `Update wiki page ${targetLabel}`,
-    });
+    if (!this.options?.skipApproval) {
+      const approvalError = await requestMutationApproval({
+        approvalManager: this.approvalManager,
+        toolName: this.name,
+        personalAction: "wiki_update_page",
+        teamAction: "wiki_update_page",
+        personalDescription: `Update wiki page ${targetLabel}`,
+        teamDescription: `Update wiki page ${targetLabel}`,
+      });
 
-    if (approvalError) {
-      return approvalError;
+      if (approvalError) {
+        return approvalError;
+      }
     }
 
     try {

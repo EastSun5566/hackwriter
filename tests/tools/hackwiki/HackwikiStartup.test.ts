@@ -22,6 +22,19 @@ vi.mock("../../../src/config/ConfigurationLoader.ts", () => ({
   },
 }));
 
+function mockApiNoteList(
+  apiMock: ReturnType<typeof vi.mocked<typeof API>>,
+  notes: Array<{ id: string; title: string }>,
+): void {
+  apiMock.mockImplementation(
+    function MockHackmdApi() {
+      return {
+        getNoteList: vi.fn().mockResolvedValue(notes),
+      } as never;
+    } as never,
+  );
+}
+
 function createConfig(): Configuration {
   return {
     defaultModel: "anthropic-claude-3-5-haiku-latest",
@@ -63,16 +76,11 @@ describe("HackwikiStartup", () => {
   });
 
   it("detects when reserved hackwiki notes already exist", async () => {
-    apiMock.mockImplementation(
-      () =>
-        ({
-          getNoteList: vi.fn().mockResolvedValue([
-            { id: "1", title: "[hackwiki] schema" },
-            { id: "2", title: "[hackwiki] index" },
-            { id: "3", title: "[hackwiki] log" },
-          ]),
-        }) as never,
-    );
+    mockApiNoteList(apiMock, [
+      { id: "1", title: "[hackwiki] schema" },
+      { id: "2", title: "[hackwiki] index" },
+      { id: "3", title: "[hackwiki] log" },
+    ]);
 
     await expect(inspectHackwikiBootstrapState(createConfig())).resolves.toBe(
       "ready",
@@ -84,14 +92,9 @@ describe("HackwikiStartup", () => {
   });
 
   it("detects when bootstrap is still needed", async () => {
-    apiMock.mockImplementation(
-      () =>
-        ({
-          getNoteList: vi.fn().mockResolvedValue([
-            { id: "1", title: "[hackwiki] schema" },
-          ]),
-        }) as never,
-    );
+    mockApiNoteList(apiMock, [
+      { id: "1", title: "[hackwiki] schema" },
+    ]);
 
     await expect(inspectHackwikiBootstrapState(createConfig())).resolves.toBe(
       "needs-bootstrap",
@@ -99,17 +102,12 @@ describe("HackwikiStartup", () => {
   });
 
   it("detects invalid reserved note duplicates", async () => {
-    apiMock.mockImplementation(
-      () =>
-        ({
-          getNoteList: vi.fn().mockResolvedValue([
-            { id: "1", title: "[hackwiki] schema" },
-            { id: "2", title: "[hackwiki] schema" },
-            { id: "3", title: "[hackwiki] index" },
-            { id: "4", title: "[hackwiki] log" },
-          ]),
-        }) as never,
-    );
+    mockApiNoteList(apiMock, [
+      { id: "1", title: "[hackwiki] schema" },
+      { id: "2", title: "[hackwiki] schema" },
+      { id: "3", title: "[hackwiki] index" },
+      { id: "4", title: "[hackwiki] log" },
+    ]);
 
     await expect(inspectHackwikiBootstrapState(createConfig())).resolves.toBe(
       "invalid",
@@ -117,16 +115,11 @@ describe("HackwikiStartup", () => {
   });
 
   it("enables wiki memory by default when reserved notes are already ready", async () => {
-    apiMock.mockImplementation(
-      () =>
-        ({
-          getNoteList: vi.fn().mockResolvedValue([
-            { id: "1", title: "[hackwiki] schema" },
-            { id: "2", title: "[hackwiki] index" },
-            { id: "3", title: "[hackwiki] log" },
-          ]),
-        }) as never,
-    );
+    mockApiNoteList(apiMock, [
+      { id: "1", title: "[hackwiki] schema" },
+      { id: "2", title: "[hackwiki] index" },
+      { id: "3", title: "[hackwiki] log" },
+    ]);
 
     const result = await resolveHackwikiStartup(createConfig(), { yolo: false });
 
@@ -138,17 +131,19 @@ describe("HackwikiStartup", () => {
   });
 
   it("allows one-time bootstrap after explicit consent", async () => {
-    apiMock.mockImplementation(
-      () =>
-        ({
-          getNoteList: vi.fn().mockResolvedValue([]),
-        }) as never,
-    );
+    mockApiNoteList(apiMock, []);
     selectMock.mockResolvedValue("enable_once");
 
     const result = await resolveHackwikiStartup(createConfig(), { yolo: false });
 
     expect(selectMock).toHaveBeenCalledTimes(1);
+    expect(selectMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "may automatically save or update durable memory after answers complete",
+        ),
+      }),
+    );
     expect(result).toEqual({
       enabled: true,
       bootstrapState: "needs-bootstrap",
@@ -157,12 +152,7 @@ describe("HackwikiStartup", () => {
   });
 
   it("persists always-enable choice without rewriting unrelated config", async () => {
-    apiMock.mockImplementation(
-      () =>
-        ({
-          getNoteList: vi.fn().mockResolvedValue([]),
-        }) as never,
-    );
+    mockApiNoteList(apiMock, []);
     selectMock.mockResolvedValue("enable_always");
 
     const config = createConfig();
@@ -177,13 +167,26 @@ describe("HackwikiStartup", () => {
     expect(updateUserConfigMock).toHaveBeenCalledTimes(1);
   });
 
-  it("persists always-disable choice", async () => {
-    apiMock.mockImplementation(
-      () =>
-        ({
-          getNoteList: vi.fn().mockResolvedValue([]),
-        }) as never,
+  it("offers an enable-once choice that explains automatic post-turn saves", async () => {
+    mockApiNoteList(apiMock, []);
+    selectMock.mockResolvedValue("skip_once");
+
+    await resolveHackwikiStartup(createConfig(), { yolo: false });
+
+    expect(selectMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        choices: expect.arrayContaining([
+          expect.objectContaining({
+            value: "enable_once",
+            name: expect.stringContaining("automatic post-turn saves"),
+          }),
+        ]),
+      }),
     );
+  });
+
+  it("persists always-disable choice", async () => {
+    mockApiNoteList(apiMock, []);
     selectMock.mockResolvedValue("disable_always");
 
     const config = createConfig();
@@ -199,12 +202,7 @@ describe("HackwikiStartup", () => {
   });
 
   it("skips wiki memory for now when the user declines", async () => {
-    apiMock.mockImplementation(
-      () =>
-        ({
-          getNoteList: vi.fn().mockResolvedValue([]),
-        }) as never,
-    );
+    mockApiNoteList(apiMock, []);
     selectMock.mockResolvedValue("skip_once");
 
     const result = await resolveHackwikiStartup(createConfig(), { yolo: false });
@@ -216,12 +214,7 @@ describe("HackwikiStartup", () => {
   });
 
   it("auto-enables bootstrap in yolo mode without persisting", async () => {
-    apiMock.mockImplementation(
-      () =>
-        ({
-          getNoteList: vi.fn().mockResolvedValue([]),
-        }) as never,
-    );
+    mockApiNoteList(apiMock, []);
 
     const result = await resolveHackwikiStartup(createConfig(), { yolo: true });
 
