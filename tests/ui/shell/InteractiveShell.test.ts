@@ -228,4 +228,49 @@ describe("InteractiveShell", () => {
       expect(shell.getExecutor()).toBe(newExecutor);
     });
   });
+
+  describe("post-turn memory writer", () => {
+    it("runs after a successful agent response", async () => {
+      const history: Array<{ role: string; content: { type: string; text: string }[]; timestamp: number }> = [];
+      const maybePersistTurn = vi.fn().mockResolvedValue(undefined);
+
+      mockExecutor.execute = vi.fn().mockImplementation(async () => {
+        history.push({
+          role: "user",
+          content: [{ type: "text", text: "Explain RAG" }],
+          timestamp: Date.now(),
+        });
+        history.push({
+          role: "assistant",
+          content: [{ type: "text", text: "RAG helps with grounding." }],
+          timestamp: Date.now(),
+        });
+      });
+
+      modelContext.context = {
+        getHistory: vi.fn(() => history),
+      } as any;
+      modelContext.postTurnMemoryWriter = {
+        maybePersistTurn,
+      };
+
+      const shell = new InteractiveShell(
+        mockExecutor as AgentExecutor,
+        modelContext,
+      );
+
+      await (shell as any).handleInput("Explain RAG");
+
+      expect(mockExecutor.execute).toHaveBeenCalledWith("Explain RAG");
+      expect(maybePersistTurn).toHaveBeenCalledWith({
+        currentModelName: "test-model",
+        config: modelContext.config,
+        userInput: "Explain RAG",
+        messages: history,
+      });
+      expect((mockExecutor.execute as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]).toBeLessThan(
+        maybePersistTurn.mock.invocationCallOrder[0],
+      );
+    });
+  });
 });

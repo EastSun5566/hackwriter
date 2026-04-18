@@ -1,5 +1,6 @@
 import * as readline from "readline";
 import chalk from "chalk";
+import type { Message } from "@mariozechner/pi-ai";
 import type { AgentExecutor } from "../../agent/AgentExecutor.js";
 import type { Configuration } from "../../config/Configuration.js";
 import type { ConversationContext } from "../../agent/ConversationContext.js";
@@ -17,6 +18,14 @@ export interface ModelContext {
   context: ConversationContext;
   toolRegistry: ToolRegistry;
   systemPrompt: string;
+  postTurnMemoryWriter?: {
+    maybePersistTurn(args: {
+      currentModelName: string;
+      config: Configuration;
+      userInput: string;
+      messages: Message[];
+    }): Promise<void>;
+  };
 }
 
 export class InteractiveShell implements Disposable {
@@ -117,10 +126,31 @@ export class InteractiveShell implements Disposable {
     }
 
     // Execute agent
+    const historyStartIndex = this.modelContext.context.getHistory().length;
     try {
       Logger.debug("Shell", "Starting agent execution", { input: input.slice(0, 50) });
       await this.executor.execute(input);
       Logger.debug("Shell", "Agent execution completed successfully");
+
+      if (this.modelContext.postTurnMemoryWriter) {
+        const newMessages = this.modelContext.context
+          .getHistory()
+          .slice(historyStartIndex);
+
+        try {
+          await this.modelContext.postTurnMemoryWriter.maybePersistTurn({
+            currentModelName: this.modelContext.currentModelName,
+            config: this.modelContext.config,
+            userInput: input,
+            messages: newMessages,
+          });
+        } catch (error) {
+          Logger.warn(
+            "Shell",
+            `Post-turn memory writer failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
     } catch (error) {
       Logger.error("Shell", "Agent execution error", error);
       console.log(
