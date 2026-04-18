@@ -11,7 +11,7 @@ import { AgentExecutor } from "./agent/AgentExecutor.js";
 import { ConversationContext } from "./agent/ConversationContext.js";
 import { ApprovalManager } from "./agent/ApprovalManager.js";
 import { MessageBus } from "./messaging/MessageBus.js";
-import { ToolRegistry } from "./tools/base/ToolRegistry.js";
+import { ToolRegistry, type ToolLike } from "./tools/base/ToolRegistry.js";
 import { ConfigurationLoader } from "./config/ConfigurationLoader.js";
 import { SessionManager } from "./session/SessionManager.js";
 import { InteractiveShell } from "./ui/shell/InteractiveShell.js";
@@ -21,6 +21,14 @@ import { Logger } from "./utils/Logger.js";
 import { ErrorFactory } from "./utils/ErrorTypes.js";
 import { SensitiveDataRedactor } from "./utils/SensitiveDataRedactor.js";
 import type { Agent } from "./agent/Agent.js";
+import { buildSystemPrompt } from "./agent/SystemPrompt.js";
+import { createHackwikiRuntime } from "./tools/hackwiki/HackwikiRuntime.js";
+import {
+  HackwikiPostTurnMemoryWriter,
+  createLocalHackwikiTools,
+  registerLocalHackwikiTools,
+  resolveHackwikiStartup,
+} from "./tools/hackwiki/index.js";
 
 import {
   createLocalHackMDTools,
@@ -38,6 +46,12 @@ const __dirname = dirname(__filename);
 const packageJson = JSON.parse(
   readFileSync(join(__dirname, "../package.json"), "utf-8"),
 );
+
+const WIKI_MODE_LOCAL_HACKMD_TOOL_NAMES = new Set([
+  "get_user_info",
+  "list_teams",
+  "get_history",
+]);
 
 const program = new Command();
 
@@ -170,21 +184,78 @@ async function runAgent(options: {
       );
     }
 
+    const hackmdConfig = config.services.hackmd;
+    const hackwikiStartup = await resolveHackwikiStartup(config, {
+      yolo: options.yolo ?? false,
+    });
+
+    if (hackwikiStartup.warning) {
+      console.warn(chalk.yellow(`⚠️  ${hackwikiStartup.warning}`));
+    }
+
+    if (hackwikiStartup.persistedChoice === "enabled") {
+      console.log(
+        chalk.green(
+          "✓ Hackwiki durable memory will stay enabled for future sessions.",
+        ),
+      );
+    } else if (hackwikiStartup.persistedChoice === "disabled") {
+      console.log(
+        chalk.gray(
+          "Hackwiki durable memory will stay disabled until you enable it again.",
+        ),
+      );
+    }
+
+    let wikiMemoryContext: string | undefined;
+    const effectiveHackwikiConfig = hackwikiStartup.enabled
+      ? {
+          ...config.services.hackwiki,
+          enabled: true,
+        }
+      : config.services.hackwiki;
+    const hackwikiRuntime = hackwikiStartup.enabled
+      ? createHackwikiRuntime(hackmdConfig, effectiveHackwikiConfig)
+      : undefined;
+    const wikiModeEnabled = Boolean(hackwikiRuntime);
+
+    if (hackwikiRuntime) {
+      try {
+        wikiMemoryContext = await hackwikiRuntime.loadPromptContext();
+        Logger.debug("CLI", "Loaded startup Hackwiki memory context");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(
+          chalk.yellow(
+            `⚠️  Failed to load Hackwiki memory context, continuing without it: ${message}`,
+          ),
+        );
+        Logger.warn("CLI", "Failed to load Hackwiki memory context", error);
+      }
+    }
+
     const approvalManager = new ApprovalManager(undefined, options.yolo ?? false);
     const toolRegistry = new ToolRegistry();
 
-    const hackmdConfig = config.services.hackmd;
     const localHackMDTools = createLocalHackMDTools(
       hackmdConfig.apiToken,
       approvalManager,
     );
+    const localHackwikiTools = hackwikiRuntime
+      ? createLocalHackwikiTools(hackwikiRuntime.wiki, approvalManager, {
+          includeWriteTools: false,
+        })
+      : [];
+    const postTurnMemoryWriter = hackwikiRuntime
+      ? new HackwikiPostTurnMemoryWriter(hackwikiRuntime.wiki, approvalManager)
+      : undefined;
     const localHackMDToolsByName = new Map(
       localHackMDTools.map((tool) => [tool.name, tool] as const),
     );
     let usedMcp = false;
 
     // Try MCP if mcpBaseUrl is configured
-    if (hackmdConfig.mcpBaseUrl) {
+    if (hackmdConfig.mcpBaseUrl && !wikiModeEnabled) {
       Logger.info("CLI", "Trying Remote MCP mode...");
       
       // Dynamic import to avoid loading MCP SDK when not needed
@@ -223,12 +294,30 @@ async function runAgent(options: {
         console.warn(chalk.red(`Failed to connect to MCP server: ${msg}`));
         console.warn(chalk.yellow("Falling back use HackMD API"));
       }
+    } else if (hackmdConfig.mcpBaseUrl && wikiModeEnabled) {
+      Logger.info(
+        "CLI",
+        "Hackwiki wiki mode enabled; skipping remote MCP note tools",
+      );
     }
 
     // Use local HackMD API if MCP not used
     if (!usedMcp) {
-      Logger.info("CLI", "Using Local HackMD API mode");
-      registerLocalHackMDTools(toolRegistry, localHackMDTools);
+      if (wikiModeEnabled) {
+        Logger.info("CLI", "Using Local Hackwiki memory mode");
+        registerToolSubset(
+          toolRegistry,
+          localHackMDTools,
+          WIKI_MODE_LOCAL_HACKMD_TOOL_NAMES,
+        );
+      } else {
+        Logger.info("CLI", "Using Local HackMD API mode");
+        registerLocalHackMDTools(toolRegistry, localHackMDTools);
+      }
+    }
+
+    if (wikiModeEnabled) {
+      registerLocalHackwikiTools(toolRegistry, localHackwikiTools);
     }
 
     // File tools (always local)
@@ -243,7 +332,11 @@ async function runAgent(options: {
       name: "HackMD Agent",
       modelName: modelConfig.model,
       maxContextSize: modelConfig.maxContextSize,
-      systemPrompt: buildSystemPrompt(workDir),
+      systemPrompt: buildSystemPrompt({
+        workDir,
+        wikiMemoryContext,
+        wikiToolsEnabled: wikiModeEnabled,
+      }),
       toolRegistry,
       apiKey: providerConfig.apiKey,
     };
@@ -265,6 +358,7 @@ async function runAgent(options: {
       context,
       toolRegistry,
       systemPrompt: agent.systemPrompt,
+      postTurnMemoryWriter,
     });
 
     // Connect approval manager to shell's readline to prevent stdin conflicts
@@ -299,24 +393,16 @@ async function runAgent(options: {
   }
 }
 
-function buildSystemPrompt(workDir: string): string {
-  return `You are a HackMD assistant. Help users manage their HackMD notes.
-
-Available tools:
-- list_notes, read_note, create_note, update_note, delete_note (use teamPath for team notes)
-- get_user_info, list_teams, get_history
-- search_notes, export_note
-- read_file, write_file, list_files (for local file operations)
-
-Guidelines:
-- Use markdown formatting
-- Be concise in responses
-- Show note titles and IDs clearly
-- For team notes, include teamPath parameter
-- ALWAYS use read_file tool to read local files before uploading to HackMD
-- Combine tools for complex operations (e.g., upload local file = read_file + create_note)
-
-Working directory: ${workDir}`;
+function registerToolSubset(
+  toolRegistry: ToolRegistry,
+  tools: ToolLike[],
+  allowedNames: Set<string>,
+): void {
+  for (const tool of tools) {
+    if (allowedNames.has(tool.name)) {
+      toolRegistry.register(tool);
+    }
+  }
 }
 
 /**
