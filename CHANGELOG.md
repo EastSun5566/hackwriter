@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.20](https://github.com/EastSun566/hackwriter/compare/v0.0.19...v0.0.20) (2026-04-29)
+
+
+### Features
+
+* impl approval mechanism for mcp ([2d43932](https://github.com/EastSun566/hackwriter/commit/2d43932b93e66478eb53f5a6e0daa14aaa6a3af6))
+* impl execution interruption handling ([575cea1](https://github.com/EastSun566/hackwriter/commit/575cea1d6bb738e99b07ba883170f1746e7b1527))
+* refactor setup command and enhance model discovery ([38bfd53](https://github.com/EastSun566/hackwriter/commit/38bfd53e134180d2686a3ac05bd260c858dc8607))
+
+
+### Bug Fixes
+
+* add packageManager field to pkg ([f2227ba](https://github.com/EastSun566/hackwriter/commit/f2227ba120ad6035e184aa1fe5b45fc68530d37c))
+* note update tool and add mutation utilities ([01df9be](https://github.com/EastSun566/hackwriter/commit/01df9be197a9ea80c3ba26e7bfcd93da8ef63e4c))
+* update packageManager version and node engine requirement ([8103619](https://github.com/EastSun566/hackwriter/commit/8103619a2e490846329a64cac5e9fcb747e91446))
+
 ### [0.0.19](https://github.com/EastSun566/hackwriter/compare/v0.0.18...v0.0.19) (2026-04-14)
 
 ### [0.0.18](https://github.com/EastSun566/hackwriter/compare/v0.0.17...v0.0.18) (2026-02-11)
