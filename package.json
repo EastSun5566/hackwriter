@@ -22,7 +22,7 @@
     "test": "vitest run",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run knip",
     "prepublishOnly": "pnpm run build",
-    "release": "npx standard-version && git push --follow-tags && npm publish"
+    "release": "npx standard-version && git push --follow-tags"
   },
   "keywords": [
     "hackmd",
