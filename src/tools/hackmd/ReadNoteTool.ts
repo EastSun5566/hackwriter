@@ -1,6 +1,6 @@
 import type { API } from "@hackmd/api";
-import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.js";
-import { handleHackMDError } from "./errorHandler.js";
+import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.ts";
+import { handleHackMDError } from "./errorHandler.ts";
 
 interface ReadNoteParams {
   noteId: string;

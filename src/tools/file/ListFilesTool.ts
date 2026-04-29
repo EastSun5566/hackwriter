@@ -1,8 +1,8 @@
 import { promises as fs, type Stats } from 'node:fs';
 import { join, relative } from 'node:path';
-import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.js';
-import { MAX_FILES_DISPLAY } from '../../config/constants.js';
-import { PathValidator, SecurityError } from '../../utils/PathValidator.js';
+import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.ts';
+import { MAX_FILES_DISPLAY } from '../../config/constants.ts';
+import { PathValidator, SecurityError } from '../../utils/PathValidator.ts';
 
 interface ListFilesParams {
   directoryPath: string;

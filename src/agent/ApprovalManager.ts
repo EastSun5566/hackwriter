@@ -1,7 +1,7 @@
 import * as readline from "readline";
-import type { ApprovalProvider, ApprovalResponse } from "./ApprovalProvider.js";
-import { MessageBus } from "../messaging/MessageBus.js";
-import { Logger } from "../utils/Logger.js";
+import type { ApprovalProvider, ApprovalResponse } from "./ApprovalProvider.ts";
+import { MessageBus } from "../messaging/MessageBus.ts";
+import { Logger } from "../utils/Logger.ts";
 
 /**
  * CLI-based approval provider using readline

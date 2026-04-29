@@ -1,7 +1,7 @@
-import type { ToolResult, ToolSchema } from "../tools/base/Tool.js";
-import type { ToolLike } from "../tools/base/ToolRegistry.js";
-import type { MCPClient, MCPToolDefinition } from "./MCPClient.js";
-import { Logger } from "../utils/Logger.js";
+import type { ToolResult, ToolSchema } from "../tools/base/Tool.ts";
+import type { ToolLike } from "../tools/base/ToolRegistry.ts";
+import type { MCPClient, MCPToolDefinition } from "./MCPClient.ts";
+import { Logger } from "../utils/Logger.ts";
 
 export interface MCPToolFallback {
   tool: ToolLike;

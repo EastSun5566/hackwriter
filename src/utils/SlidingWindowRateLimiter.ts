@@ -1,4 +1,4 @@
-import { Logger } from './Logger.js';
+import { Logger } from './Logger.ts';
 
 /**
  * Optimized rate limiter using sliding window algorithm

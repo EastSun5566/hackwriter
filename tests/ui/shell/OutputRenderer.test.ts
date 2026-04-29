@@ -27,7 +27,7 @@ vi.mock('ora', () => {
   return { default: oraFactory };
 });
 
-import { OutputRenderer } from '../../../src/ui/shell/OutputRenderer.js';
+import { OutputRenderer } from '../../../src/ui/shell/OutputRenderer.ts';
 
 describe('OutputRenderer', () => {
   let renderer: OutputRenderer;

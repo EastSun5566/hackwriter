@@ -1,27 +1,27 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { CommandRegistry } from "../../../src/ui/shell/CommandRegistry.js";
-import type { InteractiveShell } from "../../../src/ui/shell/InteractiveShell.js";
-import { runInteractiveSetup } from "../../../src/commands/setup.js";
+import { CommandRegistry } from "../../../src/ui/shell/CommandRegistry.ts";
+import type { InteractiveShell } from "../../../src/ui/shell/InteractiveShell.ts";
+import { runInteractiveSetup } from "../../../src/commands/setup.ts";
 
 // Mock ModelFactory
-vi.mock("../../../src/agent/ModelFactory.js", () => ({
+vi.mock("../../../src/agent/ModelFactory.ts", () => ({
   buildLanguageModel: vi.fn(() => ({}) as any),
 }));
 
 // Mock ConfigurationLoader
-vi.mock("../../../src/config/ConfigurationLoader.js", () => ({
+vi.mock("../../../src/config/ConfigurationLoader.ts", () => ({
   ConfigurationLoader: {
     load: vi.fn(),
     save: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
-vi.mock("../../../src/commands/setup.js", () => ({
+vi.mock("../../../src/commands/setup.ts", () => ({
   runInteractiveSetup: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock AgentExecutor as a class
-vi.mock("../../../src/agent/AgentExecutor.js", () => ({
+vi.mock("../../../src/agent/AgentExecutor.ts", () => ({
   AgentExecutor: vi.fn().mockImplementation(() => ({
     status: {
       contextUsage: 0,

@@ -1,4 +1,4 @@
-import type { ToolRegistry } from '../tools/base/ToolRegistry.js';
+import type { ToolRegistry } from '../tools/base/ToolRegistry.ts';
 
 export interface Agent {
   name: string;

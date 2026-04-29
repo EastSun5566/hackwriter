@@ -1,14 +1,14 @@
 import type { API } from "@hackmd/api";
-import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.js";
-import type { ApprovalManager } from "../../agent/ApprovalManager.js";
-import { handleHackMDError } from "./errorHandler.js";
-import { withRetry, shouldRetryHttpError } from "../../utils/retry.js";
+import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.ts";
+import type { ApprovalManager } from "../../agent/ApprovalManager.ts";
+import { handleHackMDError } from "./errorHandler.ts";
+import { withRetry, shouldRetryHttpError } from "../../utils/retry.ts";
 import {
   requestMutationApproval,
   validateNoteContent,
   validateNoteContentSize,
   validateNoteId,
-} from "./mutationUtils.js";
+} from "./mutationUtils.ts";
 
 interface UpdateNoteParams {
   noteId: string;

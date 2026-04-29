@@ -1,4 +1,4 @@
-import type { HackMDConfig } from './Configuration.js';
+import type { HackMDConfig } from './Configuration.ts';
 import {
   DEFAULT_HACKMD_API_URL,
   DEFAULT_HACKMD_MCP_URL,
@@ -7,7 +7,7 @@ import {
   HACKWRITER_API_URL_ENV,
   HACKWRITER_MCP_URL_ENV,
   HACKWRITER_TOKEN_ENV,
-} from './constants.js';
+} from './constants.ts';
 
 export interface HackMDCLIConfigLike {
   accessToken?: string;

@@ -1,5 +1,5 @@
 import { promises as fs } from "fs";
-import { Logger } from "./Logger.js";
+import { Logger } from "./Logger.ts";
 
 interface PackageJson {
   version: string;

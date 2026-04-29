@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { Logger } from '../utils/Logger.js';
+import { Logger } from '../utils/Logger.ts';
 
 /**
  * HackMD CLI configuration structure

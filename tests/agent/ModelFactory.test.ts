@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildLanguageModel } from "../../src/agent/ModelFactory.js";
+import { buildLanguageModel } from "../../src/agent/ModelFactory.ts";
 
 describe("ModelFactory", () => {
   it("uses pi-ai built-in metadata for official OpenAI models", () => {

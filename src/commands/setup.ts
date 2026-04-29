@@ -1,15 +1,15 @@
 import { password, select } from '@inquirer/prompts';
 import chalk from 'chalk';
-import { ConfigurationLoader } from '../config/ConfigurationLoader.js';
-import type { Configuration, LLMModel, LLMProvider } from '../config/Configuration.js';
-import { discoverProviders, discoverModels } from '../config/ProviderDiscovery.js';
-import { loadHackMDCLIConfig } from '../config/HackMDConfigLoader.js';
+import { ConfigurationLoader } from '../config/ConfigurationLoader.ts';
+import type { Configuration, LLMModel, LLMProvider } from '../config/Configuration.ts';
+import { discoverProviders, discoverModels } from '../config/ProviderDiscovery.ts';
+import { loadHackMDCLIConfig } from '../config/HackMDConfigLoader.ts';
 import {
   describeHackMDTokenSource,
   resolveHackMDToken,
   type HackMDTokenSource,
-} from '../config/HackMDServiceResolution.js';
-import { DEFAULT_MAX_STEPS_PER_RUN, DEFAULT_MAX_RETRIES_PER_STEP } from '../config/constants.js';
+} from '../config/HackMDServiceResolution.ts';
+import { DEFAULT_MAX_STEPS_PER_RUN, DEFAULT_MAX_RETRIES_PER_STEP } from '../config/constants.ts';
 
 type ConfigurableLLMProvider = 'anthropic' | 'openai';
 
@@ -121,7 +121,7 @@ async function configureOllamaModels(
 ): Promise<boolean> {
   console.log(chalk.cyan('\n🔍 Checking for Ollama...'));
 
-  const { discoverOllamaModels } = await import('../config/OllamaDiscovery.js');
+  const { discoverOllamaModels } = await import('../config/OllamaDiscovery.ts');
   const ollamaModels = await discoverOllamaModels();
 
   if (ollamaModels.length === 0) {

@@ -1,8 +1,8 @@
 import { getModel } from "@mariozechner/pi-ai";
 import type { Model, OpenAICompletionsCompat } from "@mariozechner/pi-ai";
-import type { LLMProvider } from "../config/Configuration.js";
-import { Logger } from "../utils/Logger.js";
-import { SensitiveDataRedactor } from "../utils/SensitiveDataRedactor.js";
+import type { LLMProvider } from "../config/Configuration.ts";
+import { Logger } from "../utils/Logger.ts";
+import { SensitiveDataRedactor } from "../utils/SensitiveDataRedactor.ts";
 
 const DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com";
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";

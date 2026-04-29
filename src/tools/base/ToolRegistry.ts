@@ -1,4 +1,4 @@
-import type { ToolResult, ToolSchema } from './Tool.js';
+import type { ToolResult, ToolSchema } from './Tool.ts';
 
 /**
  * Interface for tool-like objects (compatible with both Tool class and MCPToolAdapter)

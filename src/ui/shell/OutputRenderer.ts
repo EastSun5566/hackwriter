@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import ora, { type Ora } from 'ora';
-import { MessageBus } from '../../messaging/MessageBus.js';
-import type { AgentMessage } from '../../messaging/MessageTypes.js';
+import { MessageBus } from '../../messaging/MessageBus.ts';
+import type { AgentMessage } from '../../messaging/MessageTypes.ts';
 
 export class OutputRenderer {
   private activeSpinner: Ora | null = null;

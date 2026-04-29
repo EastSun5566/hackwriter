@@ -1,5 +1,5 @@
-import { Logger } from '../utils/Logger.js';
-import type { ModelDefinition } from './ProviderRegistry.js';
+import { Logger } from '../utils/Logger.ts';
+import type { ModelDefinition } from './ProviderRegistry.ts';
 
 interface RemoteModelDiscoveryOptions<TResponse> {
   loggerScope: string;

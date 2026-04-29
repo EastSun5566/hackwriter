@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 
-import { SlidingWindowRateLimiter } from '../../src/utils/SlidingWindowRateLimiter.js';
+import { SlidingWindowRateLimiter } from '../../src/utils/SlidingWindowRateLimiter.ts';
 
 describe('SlidingWindowRateLimiter', () => {
   afterEach(() => {

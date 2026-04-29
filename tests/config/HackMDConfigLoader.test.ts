@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vite
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { loadHackMDCLIConfig, hasHackMDCLIConfig } from '../../src/config/HackMDConfigLoader.js';
+import { loadHackMDCLIConfig, hasHackMDCLIConfig } from '../../src/config/HackMDConfigLoader.ts';
 
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('fs')>();

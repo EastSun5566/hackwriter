@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs';
-import { Logger } from './Logger.js';
+import { Logger } from './Logger.ts';
 
 interface BatchWriterOptions {
   maxBatchSize?: number;      // Default: 50

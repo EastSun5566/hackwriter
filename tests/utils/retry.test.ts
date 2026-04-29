@@ -4,7 +4,7 @@ import {
   isNetworkError,
   isRetryableStatusCode,
   shouldRetryHttpError,
-} from '../../src/utils/retry.js';
+} from '../../src/utils/retry.ts';
 
 describe('retry utilities', () => {
   describe('withRetry', () => {

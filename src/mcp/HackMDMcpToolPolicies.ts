@@ -1,8 +1,8 @@
-import type { ApprovalManager } from "../agent/ApprovalManager.js";
-import { requestMutationApproval } from "../tools/hackmd/mutationUtils.js";
-import type { ToolResult } from "../tools/base/Tool.js";
-import type { ToolLike } from "../tools/base/ToolRegistry.js";
-import type { MCPToolApproval, MCPToolFallback } from "./MCPToolAdapter.js";
+import type { ApprovalManager } from "../agent/ApprovalManager.ts";
+import { requestMutationApproval } from "../tools/hackmd/mutationUtils.ts";
+import type { ToolResult } from "../tools/base/Tool.ts";
+import type { ToolLike } from "../tools/base/ToolRegistry.ts";
+import type { MCPToolApproval, MCPToolFallback } from "./MCPToolAdapter.ts";
 
 export function buildHackMDMcpFallback(
   mcpToolName: string,

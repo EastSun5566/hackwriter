@@ -4,7 +4,7 @@ import {
   resolveHackMDMcpBaseUrl,
   resolveHackMDServiceConfig,
   resolveHackMDToken,
-} from '../../src/config/HackMDServiceResolution.js';
+} from '../../src/config/HackMDServiceResolution.ts';
 import {
   HACKMD_CLI_TOKEN_ENV,
   HACKMD_CLI_ENDPOINT_ENV,
@@ -13,7 +13,7 @@ import {
   HACKWRITER_API_URL_ENV,
   DEFAULT_HACKMD_API_URL,
   DEFAULT_HACKMD_MCP_URL,
-} from '../../src/config/constants.js';
+} from '../../src/config/constants.ts';
 
 describe('HackMD CLI Compatibility', () => {
   const originalEnv = { ...process.env };

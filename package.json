@@ -14,11 +14,10 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc",
-    "dev": "tsx src/cli.ts",
-    "start": "node dist/cli.js",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint --fix",
+    "build": "rm -rf dist && tsgo",
+    "dev": "node --experimental-transform-types src/cli.ts",
+    "typecheck": "tsgo --noEmit",
+    "lint": "oxlint --fix",
     "knip": "knip --fix",
     "test": "vitest run",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run knip",
@@ -53,16 +52,14 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
     "@types/json-schema": "^7.0.15",
     "@types/node": "^24.10.1",
+    "@typescript/native-preview": "7.0.0-dev.20260429.1",
     "@vitest/coverage-v8": "^4.0.13",
     "@vitest/ui": "^4.0.13",
-    "eslint": "^9.39.1",
     "knip": "^5.82.1",
-    "tsx": "^4.20.6",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.47.0",
+    "oxlint": "^1.62.0",
+    "oxlint-tsgolint": "^0.22.1",
     "vitest": "^4.0.13"
   },
   "engines": {

@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   InteractiveShell,
   type ModelContext,
-} from "../../../src/ui/shell/InteractiveShell.js";
-import type { AgentExecutor } from "../../../src/agent/AgentExecutor.js";
+} from "../../../src/ui/shell/InteractiveShell.ts";
+import type { AgentExecutor } from "../../../src/agent/AgentExecutor.ts";
 
 // Mock readline to avoid terminal interaction
 vi.mock("readline", () => ({

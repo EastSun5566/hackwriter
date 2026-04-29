@@ -1,4 +1,4 @@
-import type { ToolResult } from '../tools/base/Tool.js';
+import type { ToolResult } from '../tools/base/Tool.ts';
 
 export type AgentMessage =
   | { type: 'step_started'; stepNumber: number }

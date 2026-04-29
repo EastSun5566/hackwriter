@@ -1,5 +1,5 @@
-import type { ModelDefinition } from './ProviderRegistry.js';
-import { discoverRemoteModels } from './RemoteModelDiscovery.js';
+import type { ModelDefinition } from './ProviderRegistry.ts';
+import { discoverRemoteModels } from './RemoteModelDiscovery.ts';
 
 interface OpenAIModel {
   id: string;

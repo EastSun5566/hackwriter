@@ -1,6 +1,6 @@
-import type { ApprovalManager } from "../../agent/ApprovalManager.js";
-import { MAX_HACKMD_CONTENT_SIZE } from "../../config/constants.js";
-import type { ToolResult } from "../base/Tool.js";
+import type { ApprovalManager } from "../../agent/ApprovalManager.ts";
+import { MAX_HACKMD_CONTENT_SIZE } from "../../config/constants.ts";
+import type { ToolResult } from "../base/Tool.ts";
 
 // The HackMD SDK accepts these values, but does not export the enum.
 export enum NotePermissionRole {

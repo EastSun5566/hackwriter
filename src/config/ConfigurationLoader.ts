@@ -1,24 +1,24 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import type { Configuration } from './Configuration.js';
-import { safeValidateConfiguration } from './ConfigSchema.js';
-import { discoverProviders, discoverModels } from './ProviderDiscovery.js';
-import { loadHackMDCLIConfig } from './HackMDConfigLoader.js';
+import type { Configuration } from './Configuration.ts';
+import { safeValidateConfiguration } from './ConfigSchema.ts';
+import { discoverProviders, discoverModels } from './ProviderDiscovery.ts';
+import { loadHackMDCLIConfig } from './HackMDConfigLoader.ts';
 import {
   describeHackMDTokenSource,
   resolveHackMDServiceConfig,
-} from './HackMDServiceResolution.js';
-import { ErrorFactory } from '../utils/ErrorTypes.js';
-import { Logger } from '../utils/Logger.js';
-import { SensitiveDataRedactor } from '../utils/SensitiveDataRedactor.js';
+} from './HackMDServiceResolution.ts';
+import { ErrorFactory } from '../utils/ErrorTypes.ts';
+import { Logger } from '../utils/Logger.ts';
+import { SensitiveDataRedactor } from '../utils/SensitiveDataRedactor.ts';
 import {
   CONFIG_DIR,
   CONFIG_FILE,
   DEFAULT_MODEL,
   DEFAULT_MAX_STEPS_PER_RUN,
   DEFAULT_MAX_RETRIES_PER_STEP,
-} from './constants.js';
+} from './constants.ts';
 
 export class ConfigurationLoader {
   private static configPath = path.join(

@@ -1,9 +1,9 @@
-import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.js';
-import type { ApprovalManager } from '../../agent/ApprovalManager.js';
+import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.ts';
+import type { ApprovalManager } from '../../agent/ApprovalManager.ts';
 import { promises as fs } from 'node:fs';
 import { dirname } from 'node:path';
-import { MAX_FILE_SIZE } from '../../config/constants.js';
-import { PathValidator, SecurityError } from '../../utils/PathValidator.js';
+import { MAX_FILE_SIZE } from '../../config/constants.ts';
+import { PathValidator, SecurityError } from '../../utils/PathValidator.ts';
 
 interface WriteFileParams {
   filePath: string;

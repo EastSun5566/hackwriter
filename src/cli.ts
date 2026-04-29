@@ -7,31 +7,31 @@ import { fileURLToPath } from "url";
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { AgentExecutor } from "./agent/AgentExecutor.js";
-import { ConversationContext } from "./agent/ConversationContext.js";
-import { ApprovalManager } from "./agent/ApprovalManager.js";
-import { MessageBus } from "./messaging/MessageBus.js";
-import { ToolRegistry } from "./tools/base/ToolRegistry.js";
-import { ConfigurationLoader } from "./config/ConfigurationLoader.js";
-import { SessionManager } from "./session/SessionManager.js";
-import { InteractiveShell } from "./ui/shell/InteractiveShell.js";
-import { setupCommand } from "./commands/setup.js";
-import { buildLanguageModel } from "./agent/ModelFactory.js";
-import { Logger } from "./utils/Logger.js";
-import { ErrorFactory } from "./utils/ErrorTypes.js";
-import { SensitiveDataRedactor } from "./utils/SensitiveDataRedactor.js";
-import type { Agent } from "./agent/Agent.js";
+import { AgentExecutor } from "./agent/AgentExecutor.ts";
+import { ConversationContext } from "./agent/ConversationContext.ts";
+import { ApprovalManager } from "./agent/ApprovalManager.ts";
+import { MessageBus } from "./messaging/MessageBus.ts";
+import { ToolRegistry } from "./tools/base/ToolRegistry.ts";
+import { ConfigurationLoader } from "./config/ConfigurationLoader.ts";
+import { SessionManager } from "./session/SessionManager.ts";
+import { InteractiveShell } from "./ui/shell/InteractiveShell.ts";
+import { setupCommand } from "./commands/setup.ts";
+import { buildLanguageModel } from "./agent/ModelFactory.ts";
+import { Logger } from "./utils/Logger.ts";
+import { ErrorFactory } from "./utils/ErrorTypes.ts";
+import { SensitiveDataRedactor } from "./utils/SensitiveDataRedactor.ts";
+import type { Agent } from "./agent/Agent.ts";
 
 import {
   createLocalHackMDTools,
   registerLocalHackMDTools,
-} from "./tools/hackmd/index.js";
+} from "./tools/hackmd/index.ts";
 
 import {
   ReadFileTool,
   WriteFileTool,
   ListFilesTool,
-} from "./tools/file/index.js";
+} from "./tools/file/index.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -188,9 +188,9 @@ async function runAgent(options: {
       Logger.info("CLI", "Trying Remote MCP mode...");
       
       // Dynamic import to avoid loading MCP SDK when not needed
-      const { MCPClient, MCPToolAdapter } = await import("./mcp/index.js");
+      const { MCPClient, MCPToolAdapter } = await import("./mcp/index.ts");
       const { buildHackMDMcpApproval, buildHackMDMcpFallback } = await import(
-        "./mcp/HackMDMcpToolPolicies.js"
+        "./mcp/HackMDMcpToolPolicies.ts"
       );
       
       const mcpClient = new MCPClient({

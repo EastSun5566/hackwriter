@@ -1,11 +1,11 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { Client } from "@modelcontextprotocol/sdk/client";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { Logger } from "../utils/Logger.js";
+import { Logger } from "../utils/Logger.ts";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-import { AsyncPackageLoader } from "../utils/AsyncPackageLoader.js";
-import type { Disposable } from "../utils/ResourceManager.js";
-import { RetryPolicy } from "../utils/RetryPolicy.js";
+import { AsyncPackageLoader } from "../utils/AsyncPackageLoader.ts";
+import type { Disposable } from "../utils/ResourceManager.ts";
+import { RetryPolicy } from "../utils/RetryPolicy.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

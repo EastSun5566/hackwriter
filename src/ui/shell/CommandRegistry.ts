@@ -1,10 +1,10 @@
 import chalk from "chalk";
-import type { InteractiveShell } from "./InteractiveShell.js";
-import { AgentExecutor } from "../../agent/AgentExecutor.js";
-import { buildLanguageModel } from "../../agent/ModelFactory.js";
-import { ConfigurationLoader } from "../../config/ConfigurationLoader.js";
-import type { Agent } from "../../agent/Agent.js";
-import { runInteractiveSetup } from "../../commands/setup.js";
+import type { InteractiveShell } from "./InteractiveShell.ts";
+import { AgentExecutor } from "../../agent/AgentExecutor.ts";
+import { buildLanguageModel } from "../../agent/ModelFactory.ts";
+import { ConfigurationLoader } from "../../config/ConfigurationLoader.ts";
+import type { Agent } from "../../agent/Agent.ts";
+import { runInteractiveSetup } from "../../commands/setup.ts";
 
 type CommandHandler = (args: string[]) => Promise<void> | void;
 

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
-import type { AgentMessage } from './MessageTypes.js';
-import type { Disposable } from '../utils/ResourceManager.js';
+import type { AgentMessage } from './MessageTypes.ts';
+import type { Disposable } from '../utils/ResourceManager.ts';
 
 export class MessageBus extends EventEmitter implements Disposable {
   private static instance: MessageBus;

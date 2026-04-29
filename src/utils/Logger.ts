@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { SensitiveDataRedactor } from './SensitiveDataRedactor.js';
+import { SensitiveDataRedactor } from './SensitiveDataRedactor.ts';
 
 type LogLevel = 'silent' | 'info' | 'debug';
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { discoverOllamaModels } from '../../src/config/OllamaDiscovery.js';
+import { discoverOllamaModels } from '../../src/config/OllamaDiscovery.ts';
 
 describe('OllamaDiscovery', () => {
   it('should return array of models', async () => {

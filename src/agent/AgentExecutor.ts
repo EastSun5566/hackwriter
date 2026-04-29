@@ -7,11 +7,11 @@ import type {
   Model,
 } from "@mariozechner/pi-ai";
 
-import type { Agent } from "./Agent.js";
-import type { ConversationContext } from "./ConversationContext.js";
-import { MessageBus } from "../messaging/MessageBus.js";
-import type { ToolLike } from "../tools/base/ToolRegistry.js";
-import { Logger } from "../utils/Logger.js";
+import type { Agent } from "./Agent.ts";
+import type { ConversationContext } from "./ConversationContext.ts";
+import { MessageBus } from "../messaging/MessageBus.ts";
+import type { ToolLike } from "../tools/base/ToolRegistry.ts";
+import { Logger } from "../utils/Logger.ts";
 
 export interface ExecutorStatus {
   contextUsage: number;

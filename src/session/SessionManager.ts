@@ -2,8 +2,8 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
-import { Logger } from '../utils/Logger.js';
-import { CONFIG_DIR, SESSIONS_DIR } from '../config/constants.js';
+import { Logger } from '../utils/Logger.ts';
+import { CONFIG_DIR, SESSIONS_DIR } from '../config/constants.ts';
 
 export interface Session {
   id: string;

@@ -1,15 +1,15 @@
 import * as readline from "readline";
 import chalk from "chalk";
-import type { AgentExecutor } from "../../agent/AgentExecutor.js";
-import type { Configuration } from "../../config/Configuration.js";
-import type { ConversationContext } from "../../agent/ConversationContext.js";
-import type { ToolRegistry } from "../../tools/base/ToolRegistry.js";
-import { getShortModelName as getShortName } from "../../config/ProviderDiscovery.js";
-import { OutputRenderer } from "./OutputRenderer.js";
-import { CommandRegistry } from "./CommandRegistry.js";
-import { MessageBus } from "../../messaging/MessageBus.js";
-import { Logger } from "../../utils/Logger.js";
-import type { Disposable } from "../../utils/ResourceManager.js";
+import type { AgentExecutor } from "../../agent/AgentExecutor.ts";
+import type { Configuration } from "../../config/Configuration.ts";
+import type { ConversationContext } from "../../agent/ConversationContext.ts";
+import type { ToolRegistry } from "../../tools/base/ToolRegistry.ts";
+import { getShortModelName as getShortName } from "../../config/ProviderDiscovery.ts";
+import { OutputRenderer } from "./OutputRenderer.ts";
+import { CommandRegistry } from "./CommandRegistry.ts";
+import { MessageBus } from "../../messaging/MessageBus.ts";
+import { Logger } from "../../utils/Logger.ts";
+import type { Disposable } from "../../utils/ResourceManager.ts";
 
 export interface ModelContext {
   currentModelName: string;

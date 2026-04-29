@@ -1,7 +1,7 @@
-import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.js';
+import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.ts';
 import { promises as fs } from 'node:fs';
-import { MAX_FILE_DISPLAY_SIZE } from '../../config/constants.js';
-import { PathValidator, SecurityError } from '../../utils/PathValidator.js';
+import { MAX_FILE_DISPLAY_SIZE } from '../../config/constants.ts';
+import { PathValidator, SecurityError } from '../../utils/PathValidator.ts';
 
 interface ReadFileParams {
   filePath: string;

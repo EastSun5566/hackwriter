@@ -1,3 +1,3 @@
-export { ReadFileTool } from './ReadFileTool.js';
-export { WriteFileTool } from './WriteFileTool.js';
-export { ListFilesTool } from './ListFilesTool.js';
+export { ReadFileTool } from './ReadFileTool.ts';
+export { WriteFileTool } from './WriteFileTool.ts';
+export { ListFilesTool } from './ListFilesTool.ts';

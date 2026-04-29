@@ -1,7 +1,7 @@
-import type { LLMProvider, LLMModel } from './Configuration.js';
-import { BUILT_IN_PROVIDERS } from './ProviderRegistry.js';
-import type { ModelDefinition } from './ProviderRegistry.js';
-import { Logger } from '../utils/Logger.js';
+import type { LLMProvider, LLMModel } from './Configuration.ts';
+import { BUILT_IN_PROVIDERS } from './ProviderRegistry.ts';
+import type { ModelDefinition } from './ProviderRegistry.ts';
+import { Logger } from '../utils/Logger.ts';
 
 export function discoverProviders(): Record<string, LLMProvider> {
   const discovered: Record<string, LLMProvider> = {};
@@ -70,7 +70,7 @@ async function discoverProviderModels(
         return defaultModels;
       }
 
-      const { discoverAnthropicModels } = await import('./AnthropicDiscovery.js');
+      const { discoverAnthropicModels } = await import('./AnthropicDiscovery.ts');
       const discovered = await discoverAnthropicModels(provider.apiKey);
 
       if (discovered.length > 0) {
@@ -86,7 +86,7 @@ async function discoverProviderModels(
         return defaultModels;
       }
 
-      const { discoverOpenAIModels } = await import('./OpenAIDiscovery.js');
+      const { discoverOpenAIModels } = await import('./OpenAIDiscovery.ts');
       const discovered = await discoverOpenAIModels(provider.apiKey);
 
       if (discovered.length > 0) {
@@ -98,7 +98,7 @@ async function discoverProviderModels(
     }
 
     case 'ollama': {
-      const { discoverOllamaModels } = await import('./OllamaDiscovery.js');
+      const { discoverOllamaModels } = await import('./OllamaDiscovery.ts');
       const discovered = await discoverOllamaModels(provider.baseUrl ?? 'http://localhost:11434');
       Logger.debug('ProviderDiscovery', `Ollama: ${discovered.length} models`);
       return discovered;

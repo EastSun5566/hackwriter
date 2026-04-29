@@ -1,6 +1,6 @@
 import type { API } from '@hackmd/api';
 import type { Note } from '@hackmd/api/dist/type.js';
-import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.js';
+import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.ts';
 
 interface SearchNotesParams {
   query: string;

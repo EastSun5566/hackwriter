@@ -1,17 +1,17 @@
 import { API } from "@hackmd/api";
-import type { ApprovalManager } from "../../agent/ApprovalManager.js";
-import type { ToolRegistry, ToolLike } from "../base/ToolRegistry.js";
-import { Logger } from "../../utils/Logger.js";
-import { CreateNoteTool } from "./CreateNoteTool.js";
-import { DeleteNoteTool } from "./DeleteNoteTool.js";
-import { ExportNoteTool } from "./ExportNoteTool.js";
-import { GetHistoryTool } from "./GetHistoryTool.js";
-import { GetUserInfoTool } from "./GetUserInfoTool.js";
-import { ListNotesTool } from "./ListNotesTool.js";
-import { ListTeamsTool } from "./ListTeamsTool.js";
-import { ReadNoteTool } from "./ReadNoteTool.js";
-import { SearchNotesTool } from "./SearchNotesTool.js";
-import { UpdateNoteTool } from "./UpdateNoteTool.js";
+import type { ApprovalManager } from "../../agent/ApprovalManager.ts";
+import type { ToolRegistry, ToolLike } from "../base/ToolRegistry.ts";
+import { Logger } from "../../utils/Logger.ts";
+import { CreateNoteTool } from "./CreateNoteTool.ts";
+import { DeleteNoteTool } from "./DeleteNoteTool.ts";
+import { ExportNoteTool } from "./ExportNoteTool.ts";
+import { GetHistoryTool } from "./GetHistoryTool.ts";
+import { GetUserInfoTool } from "./GetUserInfoTool.ts";
+import { ListNotesTool } from "./ListNotesTool.ts";
+import { ListTeamsTool } from "./ListTeamsTool.ts";
+import { ReadNoteTool } from "./ReadNoteTool.ts";
+import { SearchNotesTool } from "./SearchNotesTool.ts";
+import { UpdateNoteTool } from "./UpdateNoteTool.ts";
 
 export function createLocalHackMDTools(
   apiToken: string,

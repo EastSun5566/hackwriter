@@ -1,5 +1,5 @@
 import type { API } from '@hackmd/api';
-import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.js';
+import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.ts';
 
 interface GetHistoryParams {
   limit?: number;

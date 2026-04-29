@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import type { Message } from "@mariozechner/pi-ai";
-import { Logger } from "../utils/Logger.js";
-import { BatchWriter } from "../utils/BatchWriter.js";
+import { Logger } from "../utils/Logger.ts";
+import { BatchWriter } from "../utils/BatchWriter.ts";
 
 /** The persisted message type for conversation history. */
 export type AgentMessage = Message;

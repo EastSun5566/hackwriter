@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { discoverProviders, discoverModels, getShortModelName } from '../../src/config/ProviderDiscovery.js';
+import { discoverProviders, discoverModels, getShortModelName } from '../../src/config/ProviderDiscovery.ts';
 
 describe('ProviderDiscovery', () => {
   const originalEnv = process.env;

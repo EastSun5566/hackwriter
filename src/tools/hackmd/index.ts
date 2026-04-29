@@ -1,4 +1,4 @@
 export {
 	createLocalHackMDTools,
 	registerLocalHackMDTools,
-} from "./LocalHackMDTools.js";
+} from "./LocalHackMDTools.ts";
