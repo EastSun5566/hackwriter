@@ -3,7 +3,7 @@
   "version": "0.0.19",
   "description": "Writing agent for HackMD",
   "type": "module",
-  "packageManager": "pnpm@9.15.9",
+  "packageManager": "pnpm@10.33.2",
   "main": "dist/cli.js",
   "bin": {
     "hackwriter": "./dist/cli.js"
@@ -63,6 +63,6 @@
     "vitest": "^4.0.13"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.0.0"
   }
 }
