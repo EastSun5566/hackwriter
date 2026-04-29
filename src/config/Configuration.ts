@@ -4,6 +4,12 @@ export interface HackMDConfig {
   apiToken: string;
 }
 
+export interface HackwikiConfig {
+  enabled?: boolean;
+  initialSchema?: string;
+  apiUrl?: string;
+}
+
 export type LLMProviderType = "anthropic" | "openai" | "ollama";
 
 export interface LLMProvider {
@@ -26,6 +32,7 @@ export interface Configuration {
   providers: Record<string, LLMProvider>;
   services: {
     hackmd?: HackMDConfig;
+    hackwiki?: HackwikiConfig;
   };
   loopControl: {
     maxStepsPerRun: number;

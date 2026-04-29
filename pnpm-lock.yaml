@@ -32,6 +32,9 @@ importers:
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
+      hackwiki:
+        specifier: ^0.0.2
+        version: 0.0.2
       ora:
         specifier: ^9.0.0
         version: 9.0.0
@@ -1740,6 +1743,9 @@ packages:
 
   graphemer@1.4.0:
     resolution: {integrity: sha512-EtKwoO6kxCL9WO5xipiHTZlSzBm7WLT627TqC/uVRd0HKmq8NXyebnNYxDoBi7wt8eTWrUrKXCOVaFq9x1kgag==}
+
+  hackwiki@0.0.2:
+    resolution: {integrity: sha512-yTq4xVP0F4ylnh1KuoAwB/QzmUZnYEc8XX29xqXKk62mKDWbdNaqpn2b3KhD+edx/zAFvTELnMIt7v3ksCmV9A==}
 
   has-flag@4.0.0:
     resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
@@ -4554,6 +4560,12 @@ snapshots:
   gopd@1.2.0: {}
 
   graphemer@1.4.0: {}
+
+  hackwiki@0.0.2:
+    dependencies:
+      '@hackmd/api': 2.5.0
+    transitivePeerDependencies:
+      - debug
 
   has-flag@4.0.0: {}
 

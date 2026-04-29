@@ -27,6 +27,47 @@ export class ConfigurationLoader {
     CONFIG_FILE
   );
 
+  static async updateUserConfig(
+    mutator: (config: Partial<Configuration>) => void,
+  ): Promise<void> {
+    try {
+      let userConfig: Partial<Configuration> = {};
+
+      try {
+        const content = await fs.readFile(this.configPath, 'utf-8');
+        userConfig = JSON.parse(content);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          if (error instanceof SyntaxError) {
+            throw ErrorFactory.configuration(
+              `Invalid JSON in config file: ${error.message}`,
+              'Please check your config.json file for syntax errors'
+            );
+          }
+          throw error;
+        }
+      }
+
+      mutator(userConfig);
+
+      const dir = path.dirname(this.configPath);
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(
+        this.configPath,
+        JSON.stringify(userConfig, null, 2),
+        'utf-8'
+      );
+
+      Logger.debug('ConfigLoader', 'User configuration updated successfully');
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AppError') {
+        throw error;
+      }
+
+      throw ErrorFactory.fromUnknown(error, 'Failed to update configuration');
+    }
+  }
+
   static async load(): Promise<Configuration> {
     try {
       const discoveredProviders = discoverProviders();

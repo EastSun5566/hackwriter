@@ -10,6 +10,12 @@ const HackMDConfigSchema = z.object({
   apiToken: z.string().min(1, "API token is required"),
 });
 
+const HackwikiConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  initialSchema: z.string().min(1, "Initial schema cannot be empty").optional(),
+  apiUrl: z.url().optional(),
+});
+
 const LLMProviderSchema = z.object({
   type: z.enum(["anthropic", "openai", "ollama"]),
   apiKey: z.string().min(1, "API key is required").optional(),
@@ -38,6 +44,7 @@ const ConfigurationSchema = z.object({
   providers: z.record(z.string(), LLMProviderSchema),
   services: z.object({
     hackmd: HackMDConfigSchema.optional(),
+    hackwiki: HackwikiConfigSchema.optional(),
   }),
   loopControl: LoopControlSchema,
 });
