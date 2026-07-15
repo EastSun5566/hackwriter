@@ -79,6 +79,36 @@ describe("ModelService", () => {
     );
   });
 
+  it("streams to Ollama without requiring or sending an API key", async () => {
+    let requestHeaders: Headers | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (request, init) => {
+      requestHeaders = request instanceof Request
+        ? request.headers
+        : new Headers(init?.headers);
+      return new Response(JSON.stringify({ error: { message: "offline test" } }), {
+        status: 503,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    const value = config();
+    value.providers.ollama = {
+      type: "ollama",
+      baseUrl: "http://localhost:11434",
+    };
+    value.models.local = {
+      provider: "ollama",
+      model: "gemma4:31b-cloud",
+      maxContextSize: 128_000,
+    };
+    const service = new ModelService(value, new InMemoryCredentialStore());
+    const model = service.resolve("local")!.model;
+
+    const result = await service.models.completeSimple(model, { messages: [] });
+
+    expect(result.errorMessage).not.toContain("No API key");
+    expect(requestHeaders?.has("authorization")).toBe(false);
+  });
+
   it("detects environment and ambient AWS credentials", async () => {
     process.env.OPENAI_API_KEY = "test-openai-key";
     process.env.AWS_ACCESS_KEY_ID = "test-access";

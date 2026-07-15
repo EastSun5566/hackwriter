@@ -6,6 +6,8 @@ import {
   type Model,
   type MutableModels,
   type Provider,
+  type ProviderStreams,
+  type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import {
@@ -24,6 +26,25 @@ import { Logger } from "../utils/Logger.ts";
 
 const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
 const ZERO_COST = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+const KEYLESS_LOCAL_TRANSPORT_KEY = "ollama-local";
+
+function keylessOpenAICompletionsApi(): ProviderStreams {
+  const api = openAICompletionsApi();
+  const options = (input?: SimpleStreamOptions): SimpleStreamOptions => ({
+    ...input,
+    // pi-ai 0.80.7 documents keyless providers but its OpenAI adapter still
+    // requires a non-empty constructor key. Keep the compatibility value local
+    // to this transport and suppress the corresponding HTTP auth header.
+    apiKey: input?.apiKey ?? KEYLESS_LOCAL_TRANSPORT_KEY,
+    headers: { authorization: null, ...input?.headers },
+  });
+
+  return {
+    stream: (model, context, input) => api.stream(model, context, options(input)),
+    streamSimple: (model, context, input) =>
+      api.streamSimple(model, context, options(input)),
+  };
+}
 
 export interface ModelMatch {
   canonicalId: string;
@@ -162,7 +183,7 @@ function createOllamaProvider(
         maxTokens: Math.min(16_384, Math.max(1, Math.floor(model.contextWindow / 8))),
       }));
     },
-    api: openAICompletionsApi(),
+    api: keylessOpenAICompletionsApi(),
   });
 }
 
