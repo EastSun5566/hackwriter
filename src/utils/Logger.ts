@@ -52,30 +52,11 @@ export class Logger {
       return;
     }
 
-    // Sanitize error message before logging
-    const sanitizedMessage = SensitiveDataRedactor.redactString(message);
-
-    Logger.log(category, sanitizedMessage, undefined, {
+    Logger.log(category, message, error, {
       category: chalk.red,
       message: chalk.red,
     });
 
-    if (error !== undefined) {
-      if (error instanceof Error) {
-        // Sanitize error stack and message
-        const sanitizedStack = SensitiveDataRedactor.redactString(error.stack ?? error.message);
-        console.log(chalk.red(sanitizedStack));
-      } else if (typeof error === 'object' && error !== null) {
-        // Redact sensitive fields from error objects
-        const redactedError = SensitiveDataRedactor.redact(error);
-        console.log(chalk.red(JSON.stringify(redactedError, null, 2)));
-      } else if (typeof error === 'string' || typeof error === 'number' || typeof error === 'boolean') {
-        const sanitizedError = typeof error === 'string' 
-          ? SensitiveDataRedactor.redactString(error)
-          : String(error);
-        console.log(chalk.red(sanitizedError));
-      }
-    }
   }
 
   private static log(
@@ -88,16 +69,23 @@ export class Logger {
     },
   ): void {
     const timestamp = new Date().toISOString().split('T')[1].slice(0, -1);
-    const categoryFormatted = colors.category(`[${category}]`);
     const timestampFormatted = chalk.gray(timestamp);
 
-    console.log(`${timestampFormatted} ${categoryFormatted} ${colors.message(message)}`);
+    const safeCategory = SensitiveDataRedactor.redactString(category);
+    const safeMessage = SensitiveDataRedactor.redactString(message);
+    const safeCategoryFormatted = colors.category(`[${safeCategory}]`);
+    console.log(`${timestampFormatted} ${safeCategoryFormatted} ${colors.message(safeMessage)}`);
 
     if (data !== undefined) {
-      if (typeof data === 'object' && data !== null) {
-        console.log(chalk.gray(JSON.stringify(data, null, 2)));
+      if (data instanceof Error) {
+        console.log(chalk.gray(SensitiveDataRedactor.redactString(data.stack ?? data.message)));
+      } else if (typeof data === 'object' && data !== null) {
+        console.log(chalk.gray(JSON.stringify(SensitiveDataRedactor.redact(data), null, 2)));
       } else if (typeof data === 'string' || typeof data === 'number' || typeof data === 'boolean') {
-        console.log(chalk.gray(String(data)));
+        const value = typeof data === 'string'
+          ? SensitiveDataRedactor.redactString(data)
+          : String(data);
+        console.log(chalk.gray(value));
       }
     }
   }

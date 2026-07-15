@@ -3,11 +3,6 @@ import { CommandRegistry } from "../../../src/ui/shell/CommandRegistry.ts";
 import type { InteractiveShell } from "../../../src/ui/shell/InteractiveShell.ts";
 import { runInteractiveSetup } from "../../../src/commands/setup.ts";
 
-// Mock ModelFactory
-vi.mock("../../../src/agent/ModelFactory.ts", () => ({
-  buildLanguageModel: vi.fn(() => ({}) as any),
-}));
-
 // Mock ConfigurationLoader
 vi.mock("../../../src/config/ConfigurationLoader.ts", () => ({
   ConfigurationLoader: {
@@ -37,11 +32,13 @@ describe("CommandRegistry", () => {
   let mockShell: Partial<InteractiveShell>;
   let mockConfig: any;
   let registry: CommandRegistry;
+  let mockModelService: any;
   let consoleSpy: ReturnType<typeof vi.spyOn>;
   const mockPrompt = vi.fn();
 
   beforeEach(() => {
     mockConfig = {
+      version: 2,
       models: {
         model1: {
           provider: "provider1",
@@ -66,6 +63,33 @@ describe("CommandRegistry", () => {
       },
     };
 
+    const runtimeModels = {
+      model1: {
+        id: "phi3",
+        name: "phi3",
+        provider: "provider1",
+        contextWindow: 128000,
+      },
+      model2: {
+        id: "claude-3-5-haiku-latest",
+        name: "Claude Haiku",
+        provider: "provider1",
+        contextWindow: 200000,
+      },
+    };
+    mockModelService = {
+      resolve: vi.fn((name: string) => {
+        const model = runtimeModels[name as keyof typeof runtimeModels];
+        return model ? { canonicalId: `provider1/${model.id}`, model } : undefined;
+      }),
+      isAvailable: vi.fn().mockResolvedValue({ auth: {} }),
+      providerStatuses: vi.fn().mockResolvedValue([
+        { id: "provider1", name: "Ollama", available: true, modelCount: 2 },
+      ]),
+      search: vi.fn(() => ({ matches: [], total: 0 })),
+      models: {},
+    };
+
     mockShell = {
       getExecutor: vi.fn(
         () =>
@@ -82,6 +106,7 @@ describe("CommandRegistry", () => {
       getModelContext: vi.fn(() => ({
         currentModelName: "model1",
         config: mockConfig,
+        modelService: mockModelService,
         context: {
           getHistory: vi.fn(() => []),
           addMessage: vi.fn(),
@@ -119,22 +144,18 @@ describe("CommandRegistry", () => {
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining("model1"),
       );
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("model2"),
-      );
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("phi3"));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("2 model"));
     });
 
-    it("should show current model with marker", async () => {
+    it("should show the current model", async () => {
       await registry.execute("model");
 
-      // Should show marker (●) for current model
       const calls = consoleSpy.mock.calls;
       const model1Line = calls.find((call: any[]) =>
         call[0]?.includes("model1"),
       );
       expect(model1Line).toBeDefined();
-      expect(model1Line![0]).toContain("●"); // Current model marker
+      expect(model1Line![0]).toContain("Current");
     });
 
     it("should switch to valid model", async () => {
@@ -186,7 +207,7 @@ describe("CommandRegistry", () => {
       await registry.execute("setup");
 
       expect(mockShell.suspendReadline).toHaveBeenCalledTimes(1);
-      expect(runInteractiveSetup).toHaveBeenCalledWith(mockConfig);
+      expect(runInteractiveSetup).toHaveBeenCalledWith(mockConfig, mockModelService);
       expect(mockShell.recreateReadline).toHaveBeenCalledTimes(1);
       expect(mockPrompt).toHaveBeenCalledTimes(1);
     });
@@ -194,7 +215,7 @@ describe("CommandRegistry", () => {
     it("should work with /config alias", async () => {
       await registry.execute("config");
 
-      expect(runInteractiveSetup).toHaveBeenCalledWith(mockConfig);
+      expect(runInteractiveSetup).toHaveBeenCalledWith(mockConfig, mockModelService);
     });
   });
 

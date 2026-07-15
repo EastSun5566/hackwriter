@@ -1,146 +1,123 @@
 # HackWriter
 
-**Writing Agent for HackMD** - Zero-config, multi-provider LLM support
+> HackMD writing agent
 
-## Quick Start
+## Requirements
 
-```sh
-npx hackwriter
-```
+- Node.js 24
+- pnpm 11
+- A HackMD API token
+- Credentials for at least one model provider, or a running Ollama server
 
-If you don't have API keys configured, the setup wizard will guide you through it.
-
-**That's it!** No config files needed.
-
----
-
-## Installation
+## Install and start
 
 ```sh
-npm i -g hackwriter
-
+npm install --global hackwriter
+hackwriter setup
 hackwriter
 ```
 
-## Features
+`hackwriter setup` supports provider API-key login, OAuth login/logout, ambient credential status, and default-model selection. Secrets entered in setup are stored in `~/.hackwriter/auth.json`, not in `config.json`.
 
-- **Zero-Config** - detected existing environment variables
-- **Multi-Provider** - Anthropic, OpenAI, Ollama (auto-detected)
-- **Model Switching** - Switch models on-the-fly with `/model`
-- **Session Persistence** - Resume your work anytime
-- **Smart Approvals** - Confirms destructive actions
+HackWriter also detects the provider environment variables supported by pi-ai, such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `AWS_PROFILE`, Google Application Default Credentials, and provider-specific variables.
+
+```sh
+export HACKMD_API_TOKEN=your-hackmd-token
+export ANTHROPIC_API_KEY=your-anthropic-key
+hackwriter
+```
+
+HackMD CLI-compatible `HMD_API_ACCESS_TOKEN` and `HMD_API_ENDPOINT_URL` are supported as fallbacks.
+
+## Providers
+
+HackWriter registers all 35 built-in pi-ai text providers:
+
+- Amazon Bedrock, Ant Ling, Anthropic, Azure OpenAI Responses
+- Cerebras, Cloudflare AI Gateway, Cloudflare Workers AI, DeepSeek, Fireworks
+- GitHub Copilot, Google, Google Vertex AI, Groq, Hugging Face
+- Kimi Coding, MiniMax and MiniMax CN, Mistral, Moonshot AI and Moonshot AI CN
+- NVIDIA, OpenAI, OpenAI Codex, OpenCode and OpenCode Go, OpenRouter
+- Together, Vercel AI Gateway, xAI
+- Xiaomi and its AMS/CN/SGP token-plan variants
+- ZAI and ZAI Coding CN
+
+Ollama is an additional dynamic provider. HackWriter discovers its installed models from `/api/tags` and streams through its OpenAI-compatible `/v1` endpoint.
+
+## Models
+
+Canonical model IDs use `provider/model-id`:
+
+```sh
+hackwriter --model anthropic/claude-sonnet-4-5
+hackwriter --command "summarize my latest note" --model openai/gpt-5
+```
+
+Legacy IDs such as `openai-gpt-5` and aliases in config remain accepted.
+
+Interactive model commands:
+
+```text
+/model                       show the current model and configured provider counts
+/model search sonnet         search provider, model ID, and display name (max 20 rows)
+/model anthropic/model-id    switch and persist the default model
+/setup                       login, logout, or change the default model
+```
 
 ## Configuration
 
-### Automatic Setup
-
-Run `hackwriter` and follow the setup wizard. It will ask for:
-
-- LLM provider (Anthropic, OpenAI, or Ollama) API key (if needed)
-- HackMD API token
-
-### Manual Setup (Optional)
-
-**Environment Variables** - Skip setup wizard by setting these:
-
-```bash
-export ANTHROPIC_API_KEY=sk-ant-xxx  # or OPENAI_API_KEY
-export HACKMD_API_TOKEN=your-token
-hackwriter  # Starts immediately!
-```
-
-| Variable            | Description                                                    |
-| ------------------- | -------------------------------------------------------------- |
-| `ANTHROPIC_API_KEY` | Anthropic API key (optional)                                   |
-| `OPENAI_API_KEY`    | OpenAI API key (optional)                                      |
-| `HACKMD_API_TOKEN`  | HackMD API token (required)                                    |
-| `HACKMD_API_URL`    | HackMD API URL (optional, default: <https://api.hackmd.io/v1>) |
-
-**HackMD CLI Compatibility** - Also supports HackMD CLI environment variables:
-
-```bash
-export HMD_API_ACCESS_TOKEN=your-token    # Same as HACKMD_API_TOKEN
-export HMD_API_ENDPOINT_URL=https://...   # Same as HACKMD_API_URL
-```
-
-> **Note:** If you're already using [HackMD CLI](https://github.com/hackmdio/hackmd-cli), HackWriter will automatically detect and use your existing `HMD_API_ACCESS_TOKEN` environment variable. No additional configuration needed!
-
-**Config File** - Override defaults with `~/.hackwriter/config.json`:
+`~/.hackwriter/config.json` uses version 2. It contains non-LLM-secret settings and is written atomically with mode `0600`.
 
 ```json
 {
-  "defaultModel": "anthropic-claude-3-5-sonnet-latest",
+  "version": 2,
+  "defaultModel": "anthropic/claude-sonnet-4-5",
   "models": {
     "fast": {
       "provider": "anthropic",
-      "model": "claude-3-5-haiku-latest",
+      "model": "claude-haiku-4-5",
       "maxContextSize": 200000
     }
+  },
+  "providers": {
+    "ollama": {
+      "type": "ollama",
+      "baseUrl": "http://localhost:11434"
+    }
+  },
+  "services": {
+    "hackmd": {
+      "apiToken": "your-hackmd-token"
+    }
+  },
+  "loopControl": {
+    "maxStepsPerRun": 100,
+    "maxRetriesPerStep": 3
   }
 }
 ```
 
----
+On first load, an unversioned config is migrated idempotently: legacy provider API keys move to `~/.hackwriter/auth.json`, while custom model aliases, endpoint overrides, OpenAI organization/project IDs, and the legacy default model are retained. Both secret-bearing files are forced to `0600`.
 
 ## Usage
 
-### Interactive Shell
-
-```bash
-hackwriter                    # Start interactive mode
-hackwriter --continue         # Resume last session
-hackwriter --debug            # Enable debug logging
-hackwriter -m gpt-4o          # Use specific model
+```sh
+hackwriter                         # interactive shell
+hackwriter --continue              # resume the previous session
+hackwriter --debug                 # redacted debug logs
+hackwriter --command "list notes" # execute once and exit
+hackwriter --yolo                  # auto-approve actions
 ```
 
-### Shell Commands
+Local `read_file`, `list_files`, and `write_file` operations are restricted to the startup working directory, including real-path and symlink checks. Writes outside that boundary are rejected before approval is requested.
 
-```bash
-/help                         # Show available commands
-/model                        # List/switch models
-/model openai-gpt-4o          # Switch to GPT-4o
-/status                       # Show current status
-/exit                         # Exit (or /quit, /q)
+## Development
+
+```sh
+pnpm install --frozen-lockfile
+pnpm run check
+pnpm test
+pnpm run build
 ```
 
-### Single Command
-
-```bash
-hackwriter -c "list my notes"
-hackwriter -c "create a note titled 'Meeting Notes'"
-```
-
-### Auto-Approve Mode
-
-```bash
-hackwriter --yolo             # Skip all confirmations
-```
-
----
-
-## Supported Providers
-
-### Anthropic
-
-```bash
-export ANTHROPIC_API_KEY=sk-ant-xxx
-```
-
-Models: Claude 3.5 Haiku, Sonnet, Opus 4
-
-### OpenAI
-
-```bash
-export OPENAI_API_KEY=sk-xxx
-```
-
-Models: GPT-4o, GPT-4o-mini, o1
-
-### Ollama (Local)
-
-```bash
-# Ollama auto-detected if running
-ollama serve
-```
-
-All local models automatically discovered
+`lint` and `knip` are read-only CI checks. Use `lint:fix` or `knip:fix` for explicit rewrites.

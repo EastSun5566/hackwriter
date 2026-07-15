@@ -1,5 +1,10 @@
-import type { ModelDefinition } from './ProviderRegistry.ts';
 import { discoverRemoteModels } from './RemoteModelDiscovery.ts';
+
+export interface OllamaModelDefinition {
+  id: string;
+  name: string;
+  contextWindow: number;
+}
 
 interface OllamaModelDetails {
   format: string;
@@ -27,7 +32,7 @@ function normalizeOllamaHostUrl(baseUrl: string): string {
 
 export async function discoverOllamaModels(
   baseUrl = 'http://localhost:11434',
-): Promise<ModelDefinition[]> {
+): Promise<OllamaModelDefinition[]> {
   const hostUrl = normalizeOllamaHostUrl(baseUrl);
 
   return discoverRemoteModels<OllamaListResponse>({

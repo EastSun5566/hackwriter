@@ -4,10 +4,9 @@ export interface HackMDConfig {
   apiToken: string;
 }
 
-export type LLMProviderType = "anthropic" | "openai" | "ollama";
-
 export interface LLMProvider {
-  type: LLMProviderType;
+  type: string;
+  /** @deprecated Read only while migrating an unversioned v1 config. */
   apiKey?: string;
   baseUrl?: string;
   organizationId?: string;
@@ -21,6 +20,7 @@ export interface LLMModel {
 }
 
 export interface Configuration {
+  version: 2;
   defaultModel: string;
   models: Record<string, LLMModel>;
   providers: Record<string, LLMProvider>;
@@ -32,4 +32,3 @@ export interface Configuration {
     maxRetriesPerStep: number;
   };
 }
-

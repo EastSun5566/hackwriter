@@ -1,160 +1,174 @@
-import { promises as fs } from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import type { Configuration } from './Configuration.ts';
-import { safeValidateConfiguration } from './ConfigSchema.ts';
-import { discoverProviders, discoverModels } from './ProviderDiscovery.ts';
-import { loadHackMDCLIConfig } from './HackMDConfigLoader.ts';
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+import type { CredentialStore } from "@earendil-works/pi-ai";
+
+import type { Configuration, LLMProvider } from "./Configuration.ts";
+import { safeValidateConfiguration } from "./ConfigSchema.ts";
+import { FileCredentialStore } from "./FileCredentialStore.ts";
+import { loadHackMDCLIConfig } from "./HackMDConfigLoader.ts";
 import {
   describeHackMDTokenSource,
   resolveHackMDServiceConfig,
-} from './HackMDServiceResolution.ts';
-import { ErrorFactory } from '../utils/ErrorTypes.ts';
-import { Logger } from '../utils/Logger.ts';
-import { SensitiveDataRedactor } from '../utils/SensitiveDataRedactor.ts';
+} from "./HackMDServiceResolution.ts";
 import {
   CONFIG_DIR,
   CONFIG_FILE,
-  DEFAULT_MODEL,
-  DEFAULT_MAX_STEPS_PER_RUN,
   DEFAULT_MAX_RETRIES_PER_STEP,
-} from './constants.ts';
+  DEFAULT_MAX_STEPS_PER_RUN,
+} from "./constants.ts";
+import { ErrorFactory } from "../utils/ErrorTypes.ts";
+import { Logger } from "../utils/Logger.ts";
+
+interface LoaderOptions {
+  configPath?: string;
+  credentials?: CredentialStore;
+}
+
+interface LegacyConfiguration extends Partial<Omit<Configuration, "version">> {
+  version?: number;
+  providers?: Record<string, LLMProvider>;
+}
+
+const defaultConfigPath = path.join(os.homedir(), CONFIG_DIR, CONFIG_FILE);
+
+function defaults(): Configuration {
+  return {
+    version: 2,
+    defaultModel: "",
+    models: {},
+    providers: {},
+    services: {},
+    loopControl: {
+      maxStepsPerRun: DEFAULT_MAX_STEPS_PER_RUN,
+      maxRetriesPerStep: DEFAULT_MAX_RETRIES_PER_STEP,
+    },
+  };
+}
 
 export class ConfigurationLoader {
-  private static configPath = path.join(
-    os.homedir(),
-    CONFIG_DIR,
-    CONFIG_FILE
-  );
+  static async load(options: LoaderOptions = {}): Promise<Configuration> {
+    const configPath = options.configPath ?? defaultConfigPath;
+    const credentials = options.credentials ?? new FileCredentialStore();
 
-  static async load(): Promise<Configuration> {
     try {
-      const discoveredProviders = discoverProviders();
-      const discoveredModels = await discoverModels(discoveredProviders);
+      let userConfig: LegacyConfiguration = {};
+      let needsRewrite = false;
 
-      const redactedProviders = SensitiveDataRedactor.redact(discoveredProviders);
-      Logger.debug(
-        'ConfigLoader',
-        `Discovered ${Object.keys(discoveredProviders).length} providers, ${Object.keys(discoveredModels).length} models`,
-        { providers: redactedProviders }
-      );
-
-      let userConfig: Partial<Configuration> = {};
       try {
-        const content = await fs.readFile(this.configPath, 'utf-8');
-        userConfig = JSON.parse(content);
+        userConfig = JSON.parse(await fs.readFile(configPath, "utf8"));
+        await fs.chmod(configPath, 0o600);
+        needsRewrite = userConfig.version !== 2;
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
           if (error instanceof SyntaxError) {
             throw ErrorFactory.configuration(
               `Invalid JSON in config file: ${error.message}`,
-              'Please check your config.json file for syntax errors'
+              "Please check your config.json file for syntax errors",
             );
           }
           throw error;
         }
-        Logger.debug('ConfigLoader', 'No user config file found, using discovered only');
       }
 
-      const providers = { ...discoveredProviders, ...(userConfig.providers ?? {}) };
-      const models = { ...discoveredModels, ...(userConfig.models ?? {}) };
+      const providers: Record<string, LLMProvider> = {};
+      for (const [providerId, provider] of Object.entries(
+        userConfig.providers ?? {},
+      )) {
+        if (provider.apiKey) {
+          // Credential write must succeed before the legacy file is rewritten.
+          await credentials.modify(providerId, (current) =>
+            Promise.resolve(current ?? { type: "api_key", key: provider.apiKey }),
+          );
+          needsRewrite = true;
+        }
 
-      const defaultModel =
-        userConfig.defaultModel ??
-        (DEFAULT_MODEL in models ? DEFAULT_MODEL : Object.keys(models)[0]) ??
-        DEFAULT_MODEL;
+        const { apiKey: _discarded, ...safeProvider } = provider;
+        providers[providerId] = safeProvider;
+      }
 
+      const base = defaults();
       const hackmdCLIConfig = await loadHackMDCLIConfig();
       const { hackmd, tokenSource } = resolveHackMDServiceConfig(
         userConfig.services?.hackmd,
         hackmdCLIConfig,
       );
-
-      const tokenSourceDescription = describeHackMDTokenSource(tokenSource);
-      if (tokenSourceDescription) {
-        Logger.debug(
-          'ConfigLoader',
-          `Using HackMD token from ${tokenSourceDescription}`,
-        );
-      }
+      const source = describeHackMDTokenSource(tokenSource);
+      if (source) Logger.debug("ConfigLoader", `Using HackMD token from ${source}`);
 
       const config: Configuration = {
-        defaultModel,
-        models,
+        version: 2,
+        defaultModel: userConfig.defaultModel ?? base.defaultModel,
+        models: userConfig.models ?? base.models,
         providers,
         services: {
           ...userConfig.services,
           hackmd: hackmd ?? userConfig.services?.hackmd,
         },
-        loopControl: userConfig.loopControl ?? {
-          maxStepsPerRun: DEFAULT_MAX_STEPS_PER_RUN,
-          maxRetriesPerStep: DEFAULT_MAX_RETRIES_PER_STEP,
-        },
+        loopControl: userConfig.loopControl ?? base.loopControl,
       };
 
       const validation = safeValidateConfiguration(config);
-
       if (!validation.success) {
-        const errorMessages = validation.errors!
-          .map((e: { path: string; message: string }) => `  - ${e.path}: ${e.message}`)
-          .join('\n');
-
+        const messages = validation.errors!
+          .map((error) => `  - ${error.path}: ${error.message}`)
+          .join("\n");
         throw ErrorFactory.configuration(
-          `Invalid configuration:\n${errorMessages}`,
-          'Please check your config.json file or environment variables'
+          `Invalid configuration:\n${messages}`,
+          "Please check your config.json file or environment variables",
         );
       }
 
-      Logger.debug('ConfigLoader', 'Configuration loaded and validated successfully');
-      Logger.debug('ConfigLoader', `Default model: ${config.defaultModel}`);
-      Logger.debug('ConfigLoader', `Total models: ${Object.keys(config.models).length}`);
-
+      if (needsRewrite) await this.save(config, { configPath });
+      Logger.debug("ConfigLoader", "Configuration loaded and validated");
       return config;
     } catch (error) {
-      if (error instanceof Error && error.name === 'AppError') {
-        throw error;
-      }
-
-      throw ErrorFactory.fromUnknown(error, 'Failed to load configuration');
+      if (error instanceof Error && error.name === "AppError") throw error;
+      throw ErrorFactory.fromUnknown(error, "Failed to load configuration");
     }
   }
 
-  static async save(config: Configuration): Promise<void> {
+  static async save(
+    config: Configuration,
+    options: Pick<LoaderOptions, "configPath"> = {},
+  ): Promise<void> {
+    const configPath = options.configPath ?? defaultConfigPath;
+    const providers = Object.fromEntries(
+      Object.entries(config.providers ?? {}).map(([id, provider]) => {
+        const { apiKey: _discarded, ...safeProvider } = provider;
+        return [id, safeProvider];
+      }),
+    );
+    const persisted: Configuration = {
+      version: 2,
+      defaultModel: config.defaultModel ?? "",
+      models: config.models ?? {},
+      providers,
+      services: config.services ?? {},
+      loopControl: config.loopControl ?? defaults().loopControl,
+    };
+
+    const directory = path.dirname(configPath);
+    const temporaryPath = path.join(
+      directory,
+      `.${path.basename(configPath)}.${process.pid}.${Date.now()}.tmp`,
+    );
+
     try {
-      const persistConfig: Record<string, unknown> = {
-        defaultModel: config.defaultModel,
-        services: config.services,
-        loopControl: config.loopControl,
-      };
-
-      const providerKeys: Record<string, { type: string; apiKey?: string }> = {};
-      for (const [name, provider] of Object.entries(config.providers)) {
-        if (provider.apiKey) {
-          providerKeys[name] = {
-            type: provider.type,
-            apiKey: provider.apiKey,
-          };
-        }
-      }
-      if (Object.keys(providerKeys).length > 0) {
-        persistConfig.providers = providerKeys;
-      }
-
-      const dir = path.dirname(this.configPath);
-      await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(
-        this.configPath,
-        JSON.stringify(persistConfig, null, 2),
-        'utf-8'
-      );
-
-      Logger.debug('ConfigLoader', 'Configuration saved successfully');
-
+      await fs.mkdir(directory, { recursive: true, mode: 0o700 });
+      await fs.chmod(directory, 0o700);
+      await fs.writeFile(temporaryPath, `${JSON.stringify(persisted, null, 2)}\n`, {
+        encoding: "utf8",
+        mode: 0o600,
+      });
+      await fs.chmod(temporaryPath, 0o600);
+      await fs.rename(temporaryPath, configPath);
+      await fs.chmod(configPath, 0o600);
+      Logger.debug("ConfigLoader", "Configuration saved successfully");
     } catch (error) {
-      if (error instanceof Error && error.name === 'AppError') {
-        throw error;
-      }
-      throw ErrorFactory.fromUnknown(error, 'Failed to save configuration');
+      await fs.rm(temporaryPath, { force: true }).catch(() => undefined);
+      throw ErrorFactory.fromUnknown(error, "Failed to save configuration");
     }
   }
 }

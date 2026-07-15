@@ -83,7 +83,11 @@ export class MCPClient implements Disposable {
         headers.set('Authorization', `Bearer ${this.config.apiToken}`);
       }
       
-      Logger.debug("MCPClient", `Fetching ${url.toString()} with headers: ${JSON.stringify(Object.fromEntries(headers.entries()))}`);
+      Logger.debug("MCPClient", "Fetching MCP request", {
+        method: init?.method ?? "GET",
+        url: url.toString(),
+        headerNames: [...headers.keys()],
+      });
       
       const response = await fetch(url, {
         ...init,
@@ -223,7 +227,7 @@ export class MCPClient implements Disposable {
     return (response.tools || []).map((tool) => ({
       name: tool.name,
       description: tool.description,
-      inputSchema: tool.inputSchema as Record<string, unknown>,
+      inputSchema: tool.inputSchema,
     }));
   }
 

@@ -1,13 +1,15 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import {
-  registerFauxProvider,
+  createModels,
+  fauxProvider,
   fauxText,
   fauxToolCall,
   fauxAssistantMessage,
   type AssistantMessage,
   type Message,
-  type FauxProviderRegistration,
-} from "@mariozechner/pi-ai";
+  type FauxProviderHandle,
+  type MutableModels,
+} from "@earendil-works/pi-ai";
 
 import { AgentExecutor } from "../../src/agent/AgentExecutor";
 import type { Agent } from "../../src/agent/Agent";
@@ -50,7 +52,8 @@ class TestTool extends Tool {
 }
 
 describe("AgentExecutor", () => {
-  let faux: FauxProviderRegistration;
+  let faux: FauxProviderHandle;
+  let models: MutableModels;
   let executor: AgentExecutor;
   let mockAgent: Agent;
   let context: ConversationContext;
@@ -58,7 +61,9 @@ describe("AgentExecutor", () => {
   let messageBus: { publish: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
-    faux = registerFauxProvider();
+    faux = fauxProvider();
+    models = createModels();
+    models.setProvider(faux.provider);
     messageBus = { publish: vi.fn() };
     (MessageBus.getInstance as unknown as ReturnType<typeof vi.fn>).mockReturnValue(messageBus);
 
@@ -72,12 +77,10 @@ describe("AgentExecutor", () => {
     };
 
     context = new ConversationContext(":memory:");
-    executor = new AgentExecutor(mockAgent, context, faux.getModel());
+    executor = new AgentExecutor(mockAgent, context, faux.getModel(), models);
   });
 
-  afterEach(() => {
-    faux.unregister();
-  });
+  afterEach(() => undefined);
 
   it("stores assistant response in context", async () => {
     faux.setResponses([
@@ -123,7 +126,7 @@ describe("AgentExecutor", () => {
         brief: "Done",
       }));
       toolRegistry.register(testTool);
-      executor = new AgentExecutor(mockAgent, context, faux.getModel());
+      executor = new AgentExecutor(mockAgent, context, faux.getModel(), models);
 
       faux.setResponses([
         fauxAssistantMessage([
@@ -149,7 +152,7 @@ describe("AgentExecutor", () => {
         brief: "Failed",
       }));
       toolRegistry.register(errorTool);
-      executor = new AgentExecutor(mockAgent, context, faux.getModel());
+      executor = new AgentExecutor(mockAgent, context, faux.getModel(), models);
 
       faux.setResponses([
         fauxAssistantMessage([
@@ -177,7 +180,7 @@ describe("AgentExecutor", () => {
     it("initializes tokenCount from persisted conversation context", async () => {
       await context.setTokenCount(1234);
 
-      executor = new AgentExecutor(mockAgent, context, faux.getModel());
+      executor = new AgentExecutor(mockAgent, context, faux.getModel(), models);
 
       expect(executor.status.tokenCount).toBe(1234);
     });

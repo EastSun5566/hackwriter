@@ -33,6 +33,7 @@ export class SensitiveDataRedactor {
     /sk-[a-zA-Z0-9]{20,}/g,           // API keys like sk-ant-xxx
     /Bearer\s+[a-zA-Z0-9_\-.]+/gi,   // Bearer tokens
     /[a-zA-Z0-9]{32,}/g,              // Long alphanumeric strings (potential tokens)
+    /((?:api[_-]?key|token|authorization|password|secret)=)[^&\s]+/gi,
   ];
 
   /**
@@ -49,7 +50,7 @@ export class SensitiveDataRedactor {
     }
 
     if (typeof obj !== 'object') {
-      return obj;
+      return typeof obj === 'string' ? this.redactString(obj) : obj;
     }
 
     if (Array.isArray(obj)) {
@@ -71,7 +72,9 @@ export class SensitiveDataRedactor {
         // Recursively redact nested objects
         redacted[key] = this.redact(value, sensitiveKeys);
       } else {
-        redacted[key] = value;
+        redacted[key] = typeof value === 'string'
+          ? this.redactString(value)
+          : value;
       }
     }
 

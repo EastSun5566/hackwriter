@@ -33,10 +33,18 @@ export class ListFilesTool extends Tool<ListFilesParams> {
     required: ['directoryPath'],
   };
 
+  constructor(private readonly workDir = process.cwd()) {
+    super();
+  }
+
   async call(params: ListFilesParams): Promise<ToolResult> {
     // Validate directory path using PathValidator
     try {
-      PathValidator.validate(params.directoryPath);
+      const validatedPath = await PathValidator.validateExisting(
+        params.directoryPath,
+        this.workDir,
+      );
+      return await this.listValidated(validatedPath, params);
     } catch (error) {
       if (error instanceof SecurityError) {
         return this.error(
@@ -52,9 +60,15 @@ export class ListFilesTool extends Tool<ListFilesParams> {
       );
     }
 
+  }
+
+  private async listValidated(
+    directoryPath: string,
+    params: ListFilesParams,
+  ): Promise<ToolResult> {
     try {
       const files = await this.listFiles(
-        params.directoryPath,
+        directoryPath,
         params.recursive ?? false,
         params.pattern
       );

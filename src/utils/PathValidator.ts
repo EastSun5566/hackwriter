@@ -1,91 +1,102 @@
-import { resolve, dirname, relative, isAbsolute } from 'path';
+import { promises as fs } from "node:fs";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 
-/**
- * Security error for path validation failures
- */
 export class SecurityError extends Error {
   constructor(
     message: string,
     public readonly path?: string,
-    public readonly violation?: string
+    public readonly violation?: string,
   ) {
     super(message);
-    this.name = 'SecurityError';
+    this.name = "SecurityError";
   }
 }
 
-/**
- * PathValidator provides security validation for file paths
- * to prevent path traversal attacks and ensure paths stay within allowed boundaries
- */
+function isWithin(root: string, target: string): boolean {
+  const difference = relative(root, target);
+  return difference === "" || (!difference.startsWith("..") && !isAbsolute(difference));
+}
+
 export class PathValidator {
-  /**
-   * Validate a file path for security
-   * @param filePath - The path to validate
-   * @param allowedDirs - Optional array of allowed base directories
-   * @returns The normalized absolute path
-   * @throws SecurityError if path is invalid or contains traversal sequences
-   */
-  static validate(filePath: string, allowedDirs?: string[]): string {
-    if (!filePath || filePath.trim() === '') {
-      throw new SecurityError(
-        'File path cannot be empty',
-        filePath,
-        'empty_path'
-      );
+  static async validateExisting(filePath: string, workDir: string): Promise<string> {
+    this.assertNotEmpty(filePath);
+    const root = await fs.realpath(resolve(workDir));
+    const requested = resolve(root, filePath);
+    let actual: string;
+    try {
+      actual = await fs.realpath(requested);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new SecurityError("Path does not exist", filePath, "not_found");
+      }
+      throw error;
+    }
+    this.assertWithin(root, actual, filePath);
+    return actual;
+  }
+
+  static async validateForWrite(filePath: string, workDir: string): Promise<string> {
+    this.assertNotEmpty(filePath);
+    const root = await fs.realpath(resolve(workDir));
+    const requested = resolve(root, filePath);
+
+    try {
+      const actual = await fs.realpath(requested);
+      this.assertWithin(root, actual, filePath);
+      return actual;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
 
-    // Normalize the path to resolve any relative references
-    const normalized = this.normalize(filePath);
-
-    // Check for path traversal after normalization
-    if (this.hasTraversal(filePath)) {
-      throw new SecurityError(
-        'Path traversal is not allowed for security reasons',
-        filePath,
-        'path_traversal'
-      );
-    }
-
-    // If allowed directories are specified, verify the path is within them
-    if (allowedDirs && allowedDirs.length > 0) {
-      const isWithinAllowed = allowedDirs.some(allowedDir => {
-        const resolvedAllowed = resolve(allowedDir);
-        const relativePath = relative(resolvedAllowed, normalized);
-        
-        // Path is within allowed dir if relative path doesn't start with '..'
-        return relativePath && !relativePath.startsWith('..') && !isAbsolute(relativePath);
-      });
-
-      if (!isWithinAllowed) {
-        throw new SecurityError(
-          `Path is outside allowed directories`,
-          filePath,
-          'outside_allowed_dirs'
-        );
+    let existingParent = dirname(requested);
+    while (true) {
+      try {
+        existingParent = await fs.realpath(existingParent);
+        break;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        const next = dirname(existingParent);
+        if (next === existingParent) throw error;
+        existingParent = next;
       }
     }
+    this.assertWithin(root, existingParent, filePath);
+    // The lexical target is safe because every existing ancestor, including any
+    // symlink, was collapsed by realpath before the containment check.
+    return requested;
+  }
 
+  /** Legacy lexical validation retained for callers outside the file tools. */
+  static validate(filePath: string, allowedDirs: string[] = []): string {
+    this.assertNotEmpty(filePath);
+    const normalized = resolve(filePath);
+    if (allowedDirs.length > 0 && !allowedDirs.some((dir) => isWithin(resolve(dir), normalized))) {
+      throw new SecurityError("Path is outside allowed directories", filePath, "outside_allowed_dirs");
+    }
     return normalized;
   }
 
-  /**
-   * Normalize and resolve a path to absolute form
-   * @param filePath - The path to normalize
-   * @returns Absolute path with all relative references resolved
-   */
   static normalize(filePath: string): string {
     return resolve(filePath);
   }
 
-  /**
-   * Check if path contains traversal sequences
-   * @param filePath - The path to check
-   * @returns true if path contains '..' sequences
-   */
   static hasTraversal(filePath: string): boolean {
-    // Check for '..' in the path
-    const normalized = dirname(filePath);
-    return normalized.includes('..');
+    return filePath.split(/[\\/]+/u).includes("..");
+  }
+
+  private static assertNotEmpty(filePath: string): void {
+    if (!filePath || filePath.trim() === "") {
+      throw new SecurityError("File path cannot be empty", filePath, "empty_path");
+    }
+  }
+
+  private static assertWithin(root: string, target: string, original: string): void {
+    if (!isWithin(root, target)) {
+      throw new SecurityError(
+        "Path is outside the working directory",
+        original,
+        "outside_working_directory",
+      );
+    }
   }
 }

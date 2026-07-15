@@ -11,8 +11,7 @@ const HackMDConfigSchema = z.object({
 });
 
 const LLMProviderSchema = z.object({
-  type: z.enum(["anthropic", "openai", "ollama"]),
-  apiKey: z.string().min(1, "API key is required").optional(),
+  type: z.string().min(1, "Provider type is required"),
   baseUrl: z.url().optional(),
   organizationId: z.string().optional(),
   projectId: z.string().optional(),
@@ -33,6 +32,7 @@ const LoopControlSchema = z.object({
 });
 
 const ConfigurationSchema = z.object({
+  version: z.literal(2),
   defaultModel: z.string(),
   models: z.record(z.string(), LLMModelSchema),
   providers: z.record(z.string(), LLMProviderSchema),

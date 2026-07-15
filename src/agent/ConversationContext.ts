@@ -1,5 +1,5 @@
 import { promises as fs } from "fs";
-import type { Message } from "@mariozechner/pi-ai";
+import type { Message } from "@earendil-works/pi-ai";
 import { Logger } from "../utils/Logger.ts";
 import { BatchWriter } from "../utils/BatchWriter.ts";
 

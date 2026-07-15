@@ -1,11 +1,12 @@
-import { Agent as PiAgent } from "@mariozechner/pi-agent-core";
-import type { AgentEvent, AgentTool } from "@mariozechner/pi-agent-core";
-import { Type } from "@mariozechner/pi-ai";
+import { Agent as PiAgent } from "@earendil-works/pi-agent-core";
+import type { AgentEvent, AgentTool } from "@earendil-works/pi-agent-core";
+import { Type } from "@earendil-works/pi-ai";
 import type {
   AssistantMessage as PiAssistantMessage,
   Message,
   Model,
-} from "@mariozechner/pi-ai";
+  Models,
+} from "@earendil-works/pi-ai";
 
 import type { Agent } from "./Agent.ts";
 import type { ConversationContext } from "./ConversationContext.ts";
@@ -21,7 +22,7 @@ export interface ExecutorStatus {
 
 /**
  * Wraps an existing ToolLike (legacy Tool interface) as an AgentTool
- * compatible with @mariozechner/pi-agent-core.
+ * compatible with @earendil-works/pi-agent-core.
  */
 function wrapTool(tool: ToolLike): AgentTool {
   return {
@@ -29,7 +30,7 @@ function wrapTool(tool: ToolLike): AgentTool {
     label: tool.name,
     description: tool.description,
     // Use Type.Unsafe to pass the existing JSON Schema as a TypeBox schema
-    parameters: Type.Unsafe(tool.inputSchema as Record<string, unknown>),
+    parameters: Type.Unsafe(tool.inputSchema),
     execute: async (_toolCallId, params) => {
       const result = await tool.call(params as Record<string, unknown>);
       if (!result.ok) {
@@ -159,6 +160,7 @@ export class AgentExecutor {
     agent: Agent,
     context: ConversationContext,
     model: Model<string>,
+    models?: Models,
   ) {
     this.context = context;
     this.maxContextSize = agent.maxContextSize;
@@ -168,7 +170,6 @@ export class AgentExecutor {
 
     this.toolsForEstimation = agent.toolRegistry.getAll();
     const tools = this.toolsForEstimation.map(wrapTool);
-    const apiKey = agent.apiKey;
 
     this.piAgent = new PiAgent({
       initialState: {
@@ -177,19 +178,7 @@ export class AgentExecutor {
         tools,
         messages: context.getHistory(),
       },
-      getApiKey: (providerName) => {
-        if (apiKey) {
-          return apiKey;
-        }
-
-        // pi-ai's OpenAI-compatible "simple" streaming path requires an API key,
-        // but Ollama ignores it. Return a dummy value so local Ollama models work.
-        if (providerName === "ollama") {
-          return "ollama";
-        }
-
-        return undefined;
-      },
+      ...(models ? { streamFn: models.streamSimple.bind(models) } : {}),
     });
 
     this.piAgent.subscribe((event) => this.handleEvent(event));

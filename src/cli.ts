@@ -15,8 +15,8 @@ import { ToolRegistry } from "./tools/base/ToolRegistry.ts";
 import { ConfigurationLoader } from "./config/ConfigurationLoader.ts";
 import { SessionManager } from "./session/SessionManager.ts";
 import { InteractiveShell } from "./ui/shell/InteractiveShell.ts";
-import { setupCommand } from "./commands/setup.ts";
-import { buildLanguageModel } from "./agent/ModelFactory.ts";
+import { selectDefaultModel, setupCommand } from "./commands/setup.ts";
+import { ModelService } from "./config/ModelService.ts";
 import { Logger } from "./utils/Logger.ts";
 import { ErrorFactory } from "./utils/ErrorTypes.ts";
 import { SensitiveDataRedactor } from "./utils/SensitiveDataRedactor.ts";
@@ -104,35 +104,38 @@ async function runAgent(options: {
   }
 
   try {
-    const config = await ConfigurationLoader.load();
+    let config = await ConfigurationLoader.load();
+    let modelService = new ModelService(config);
+    await modelService.initialize();
     Logger.debug(
       "CLI",
       `Config loaded: ${config.defaultModel || "no default"}, ${Object.keys(config.models).length} model(s)`,
     );
 
-    // Check if we have discovered providers from environment
-    const hasDiscoveredProviders = Object.keys(config.providers).some(
-      (name) => config.providers[name].apiKey
-    );
-
-    const needsSetup =
-      !config.services.hackmd?.apiToken ||
-      (!config.defaultModel && !options.model && !hasDiscoveredProviders);
+    let availableModels = await modelService.availableModels();
+    const needsSetup = !config.services.hackmd?.apiToken || availableModels.length === 0;
 
     if (needsSetup) {
       console.log(
         chalk.yellow("⚙️  Configuration needed. Starting setup wizard...\n"),
       );
+      if (options.command || !process.stdin.isTTY) {
+        throw ErrorFactory.configuration(
+          "HackWriter has no usable HackMD token or model provider.",
+          "Run 'hackwriter setup' in an interactive terminal first.",
+        );
+      }
       await setupCommand(true);
 
-      const newConfig = await ConfigurationLoader.load();
+      config = await ConfigurationLoader.load();
+      modelService = new ModelService(config);
+      await modelService.initialize();
+      availableModels = await modelService.availableModels();
 
-      if (!newConfig.services.hackmd?.apiToken || !newConfig.defaultModel) {
+      if (!config.services.hackmd?.apiToken || availableModels.length === 0) {
         console.log(chalk.gray("\nSetup cancelled or incomplete."));
-        process.exit(0);
+        return;
       }
-
-      Object.assign(config, newConfig);
     }
 
     const workDir = process.cwd();
@@ -142,26 +145,29 @@ async function runAgent(options: {
       : await SessionManager.create(workDir);
     Logger.debug("CLI", `Session: ${session.id.slice(0, 8)}...`);
 
-    const modelName = options.model ?? config.defaultModel;
-    const modelConfig = config.models[modelName];
-    
-    if (!modelConfig) {
+    let modelMatch = modelService.resolve(options.model ?? config.defaultModel);
+    if (modelMatch && !(await modelService.isAvailable(modelMatch.model))) {
+      modelMatch = undefined;
+    }
+    if (!modelMatch && availableModels.length === 1 && !options.model) {
+      modelMatch = availableModels[0];
+      config.defaultModel = modelMatch.canonicalId;
+      await ConfigurationLoader.save(config);
+    }
+    if (!modelMatch && !options.command && process.stdin.isTTY && !options.model) {
+      const selected = await selectDefaultModel(config, modelService);
+      modelMatch = selected ? modelService.resolve(selected) : undefined;
+    }
+    if (!modelMatch) {
       throw ErrorFactory.configuration(
-        `Model "${modelName}" not found in configuration. Available models: ${Object.keys(config.models).join(', ')}`,
+        `Model "${options.model ?? config.defaultModel}" is unavailable or invalid.`,
+        options.command || !process.stdin.isTTY
+          ? "Pass a configured canonical model with --model provider/model-id."
+          : "Run 'hackwriter setup' or choose a model with /model.",
       );
     }
-    
-    Logger.debug("CLI", `Model: ${modelConfig.provider}/${modelConfig.model}`);
-    
-    const providerConfig = config.providers[modelConfig.provider];
-    if (!providerConfig) {
-      throw ErrorFactory.configuration(
-        `Provider configuration '${modelConfig.provider}' is missing`,
-        `Please run 'hackwriter setup' to configure the provider`
-      );
-    }
-    
-    const languageModel = buildLanguageModel(providerConfig, modelConfig.model, modelConfig.maxContextSize);
+    const languageModel = modelMatch.model;
+    Logger.debug("CLI", `Model: ${modelMatch.canonicalId}`);
 
     if (!config.services.hackmd) {
       throw ErrorFactory.configuration(
@@ -232,20 +238,19 @@ async function runAgent(options: {
     }
 
     // File tools (always local)
-    toolRegistry.register(new ReadFileTool());
-    toolRegistry.register(new WriteFileTool(approvalManager));
-    toolRegistry.register(new ListFilesTool());
+    toolRegistry.register(new ReadFileTool(workDir));
+    toolRegistry.register(new WriteFileTool(approvalManager, workDir));
+    toolRegistry.register(new ListFilesTool(workDir));
 
     Logger.debug("CLI", `Registered ${toolRegistry.getAll().length} tools`);
 
     // Create Agent
     const agent: Agent = {
       name: "HackMD Agent",
-      modelName: modelConfig.model,
-      maxContextSize: modelConfig.maxContextSize,
+      modelName: languageModel.id,
+      maxContextSize: languageModel.contextWindow,
       systemPrompt: buildSystemPrompt(workDir),
       toolRegistry,
-      apiKey: providerConfig.apiKey,
     };
 
     // Create conversation context
@@ -257,11 +262,13 @@ async function runAgent(options: {
       agent,
       context,
       languageModel,
+      modelService.models,
     );
 
     shell = new InteractiveShell(executor, {
-      currentModelName: options.model ?? config.defaultModel,
+      currentModelName: modelMatch.canonicalId,
       config,
+      modelService,
       context,
       toolRegistry,
       systemPrompt: agent.systemPrompt,

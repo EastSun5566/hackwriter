@@ -4,16 +4,26 @@ import type { AgentExecutor } from "../../agent/AgentExecutor.ts";
 import type { Configuration } from "../../config/Configuration.ts";
 import type { ConversationContext } from "../../agent/ConversationContext.ts";
 import type { ToolRegistry } from "../../tools/base/ToolRegistry.ts";
-import { getShortModelName as getShortName } from "../../config/ProviderDiscovery.ts";
 import { OutputRenderer } from "./OutputRenderer.ts";
 import { CommandRegistry } from "./CommandRegistry.ts";
 import { MessageBus } from "../../messaging/MessageBus.ts";
 import { Logger } from "../../utils/Logger.ts";
 import type { Disposable } from "../../utils/ResourceManager.ts";
+import type { ModelService } from "../../config/ModelService.ts";
+
+function getShortName(modelId: string): string {
+  const normalized = modelId.toLowerCase();
+  for (const family of ["haiku", "sonnet", "opus"]) {
+    if (normalized.includes(family)) return family;
+  }
+  const llama = /llama[\d.]+/u.exec(normalized);
+  return llama?.[0] ?? modelId;
+}
 
 export interface ModelContext {
   currentModelName: string;
   config: Configuration;
+  modelService?: ModelService;
   context: ConversationContext;
   toolRegistry: ToolRegistry;
   systemPrompt: string;
@@ -49,9 +59,8 @@ export class InteractiveShell implements Disposable {
     // If there's an initial command, execute it first
     if (initialCommand) {
       await this.handleInput(initialCommand);
+      return;
     }
-
-    // Always enter interactive mode (unless explicitly exited)
     return new Promise((resolve) => {
       this.closeResolver = resolve;
       this.attachReadlineHandlers();
@@ -168,13 +177,14 @@ export class InteractiveShell implements Disposable {
 
   private getShortModelName(): string {
     const { currentModelName, config } = this.modelContext;
+    const runtimeModel = this.modelContext.modelService?.resolve(currentModelName);
+    if (runtimeModel) return getShortName(runtimeModel.model.id);
     const modelConfig = config.models[currentModelName];
 
     if (!modelConfig) {
       return currentModelName;
     }
 
-    // Use ProviderDiscovery helper for consistent naming
     return getShortName(modelConfig.model);
   }
 

@@ -6,6 +6,4 @@ export interface Agent {
   maxContextSize: number;
   systemPrompt: string;
   toolRegistry: ToolRegistry;
-  /** Optional API key for the LLM provider. */
-  apiKey?: string;
 }

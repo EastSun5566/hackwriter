@@ -34,14 +34,21 @@ export class WriteFileTool extends Tool<WriteFileParams> {
     required: ['filePath', 'content'],
   };
 
-  constructor(private approvalManager: ApprovalManager) {
+  constructor(
+    private approvalManager: ApprovalManager,
+    private readonly workDir = process.cwd(),
+  ) {
     super();
   }
 
   async call(params: WriteFileParams): Promise<ToolResult> {
     // Validate file path using PathValidator
     try {
-      PathValidator.validate(params.filePath);
+      const validatedPath = await PathValidator.validateForWrite(
+        params.filePath,
+        this.workDir,
+      );
+      return await this.writeValidated(validatedPath, params);
     } catch (error) {
       if (error instanceof SecurityError) {
         return this.error(
@@ -57,6 +64,12 @@ export class WriteFileTool extends Tool<WriteFileParams> {
       );
     }
 
+  }
+
+  private async writeValidated(
+    filePath: string,
+    params: WriteFileParams,
+  ): Promise<ToolResult> {
     // Check content size
     if (params.content.length > MAX_FILE_SIZE) {
       const sizeMB = (params.content.length / (1024 * 1024)).toFixed(2);
@@ -85,12 +98,12 @@ export class WriteFileTool extends Tool<WriteFileParams> {
       const createDirs = params.createDirectories !== false;
       
       if (createDirs) {
-        const dir = dirname(params.filePath);
+        const dir = dirname(filePath);
         await fs.mkdir(dir, { recursive: true });
       }
 
-      await fs.writeFile(params.filePath, params.content, 'utf-8');
-      const stats = await fs.stat(params.filePath);
+      await fs.writeFile(filePath, params.content, 'utf-8');
+      const stats = await fs.stat(filePath);
 
       const output = 
         `✅ File written successfully!\n\n` +

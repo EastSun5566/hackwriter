@@ -2,7 +2,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import type { Message } from '@mariozechner/pi-ai';
+import type { Message } from '@earendil-works/pi-ai';
 
 import { ConversationContext } from '../../src/agent/ConversationContext';
 

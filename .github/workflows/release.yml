@@ -15,10 +15,12 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
+        with:
+          version: 11.13.0
 
       - uses: actions/setup-node@v5
         with:
-          node-version: "lts/*"
+          node-version: "24"
           cache: "pnpm"
 
       - name: Install and test
@@ -38,10 +40,12 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
+        with:
+          version: 11.13.0
 
       - uses: actions/setup-node@v5
         with:
-          node-version: "lts/*"
+          node-version: "24"
           registry-url: https://registry.npmjs.org/
           cache: "pnpm"
 

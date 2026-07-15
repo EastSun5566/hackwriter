@@ -22,10 +22,18 @@ export class ReadFileTool extends Tool<ReadFileParams> {
     required: ['filePath'],
   };
 
+  constructor(private readonly workDir = process.cwd()) {
+    super();
+  }
+
   async call(params: ReadFileParams): Promise<ToolResult> {
     // Validate file path using PathValidator
     try {
-      PathValidator.validate(params.filePath);
+      const validatedPath = await PathValidator.validateExisting(
+        params.filePath,
+        this.workDir,
+      );
+      return await this.read(validatedPath, params.filePath);
     } catch (error) {
       if (error instanceof SecurityError) {
         return this.error(
@@ -41,33 +49,36 @@ export class ReadFileTool extends Tool<ReadFileParams> {
       );
     }
 
+  }
+
+  private async read(filePath: string, displayPath: string): Promise<ToolResult> {
     try {
-      const content = await fs.readFile(params.filePath, 'utf-8');
-      const stats = await fs.stat(params.filePath);
+      const content = await fs.readFile(filePath, 'utf-8');
+      const stats = await fs.stat(filePath);
 
       // Warn if file is very large
       if (stats.size > MAX_FILE_DISPLAY_SIZE) {
         const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
         return this.ok(
           `⚠️ File is very large (${sizeMB}MB)\n\n` +
-          `**File:** ${params.filePath}\n` +
+          `**File:** ${displayPath}\n` +
           `**Size:** ${stats.size} bytes\n` +
           `**Modified:** ${stats.mtime.toLocaleString()}\n\n` +
           `**Content (truncated to 1MB):**\n\`\`\`\n${content.slice(0, MAX_FILE_DISPLAY_SIZE)}\n...\n[truncated]\n\`\`\``,
-          `Read file (truncated): ${params.filePath}`,
+          `Read file (truncated): ${displayPath}`,
           'Read (truncated)',
         );
       }
 
       const output = 
-        `**File:** ${params.filePath}\n` +
+        `**File:** ${displayPath}\n` +
         `**Size:** ${stats.size} bytes\n` +
         `**Modified:** ${stats.mtime.toLocaleString()}\n\n` +
         `**Content:**\n\`\`\`\n${content}\n\`\`\``;
 
       return this.ok(
         output,
-        `Successfully read file: ${params.filePath}`,
+        `Successfully read file: ${displayPath}`,
         'Read',
       );
     } catch (error) {

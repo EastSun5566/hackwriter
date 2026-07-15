@@ -1,7 +1,6 @@
 import chalk from "chalk";
 import type { InteractiveShell } from "./InteractiveShell.ts";
 import { AgentExecutor } from "../../agent/AgentExecutor.ts";
-import { buildLanguageModel } from "../../agent/ModelFactory.ts";
 import { ConfigurationLoader } from "../../config/ConfigurationLoader.ts";
 import type { Agent } from "../../agent/Agent.ts";
 import { runInteractiveSetup } from "../../commands/setup.ts";
@@ -60,7 +59,9 @@ export class CommandRegistry {
       description: "List or switch models",
       handler: async (args) => {
         if (args.length === 0) {
-          this.listModels();
+          await this.listModels();
+        } else if (args[0] === "search") {
+          this.searchModels(args.slice(1).join(" "));
         } else {
           await this.switchModel(args[0]);
         }
@@ -134,89 +135,82 @@ export class CommandRegistry {
     console.log();
   }
 
-  private listModels(): void {
-    const { config, currentModelName } = this.shell.getModelContext();
+  private async listModels(): Promise<void> {
+    const { currentModelName, modelService } = this.shell.getModelContext();
 
     console.log(chalk.bold('\n🤖 Available Models:\n'));
-
-    // Group models by provider
-    const byProvider = new Map<string, { name: string; model: string; isCurrent: boolean }[]>();
-
-    for (const [name, modelConfig] of Object.entries(config.models)) {
-      const provider = modelConfig.provider;
-      if (!byProvider.has(provider)) {
-        byProvider.set(provider, []);
-      }
-
-      byProvider.get(provider)!.push({
-        name,
-        model: modelConfig.model,
-        isCurrent: name === currentModelName,
-      });
+    console.log(`  Current: ${chalk.cyan(currentModelName)}\n`);
+    if (!modelService) return;
+    for (const status of await modelService.providerStatuses()) {
+      if (!status.available) continue;
+      console.log(
+        `  ${chalk.bold(status.name)} (${status.id}): ${status.modelCount} model(s)` +
+          (status.authSource ? chalk.gray(` — ${status.authSource}`) : ""),
+      );
     }
+    console.log(chalk.gray("\n  Use /model search <text> to find models."));
+  }
 
-    // Display grouped by provider
-    for (const [providerName, models] of byProvider) {
-      const provider = config.providers[providerName];
-      if (!provider) continue;
-
-      // Provider header
-      console.log(chalk.bold(`${provider.type}:`));
-
-      // Models under this provider
-      for (const { name, model, isCurrent } of models) {
-        const marker = isCurrent ? chalk.green('●') : ' ';
-        console.log(`  ${marker} ${chalk.cyan(name)} ${chalk.gray(`(${model})`)}`);
-      }
-
-      console.log(); // Blank line between providers
+  private searchModels(query: string): void {
+    const { modelService, currentModelName } = this.shell.getModelContext();
+    if (!modelService) {
+      console.log(chalk.yellow("Runtime model search is unavailable."));
+      return;
+    }
+    if (!query.trim()) {
+      console.log(chalk.yellow("Usage: /model search <text>"));
+      return;
+    }
+    const result = modelService.search(query, 20);
+    console.log(chalk.bold(`\n🔎 ${result.total} matching model(s):\n`));
+    for (const match of result.matches) {
+      const marker = match.canonicalId === currentModelName ? chalk.green("●") : " ";
+      console.log(`  ${marker} ${chalk.cyan(match.canonicalId)} — ${match.model.name}`);
+    }
+    if (result.total > result.matches.length) {
+      console.log(chalk.gray(`\n  Showing 20 of ${result.total}; refine the search text.`));
     }
   }
 
   private async switchModel(modelName: string): Promise<void> {
     const modelContext = this.shell.getModelContext();
-    const { config } = modelContext;
+    const { config, modelService } = modelContext;
 
-    if (!config.models[modelName]) {
-      console.log(chalk.red(`Model "${modelName}" not found`));
-      this.listModels();
+    const match = modelService?.resolve(modelName);
+    if (!modelService || !match || !(await modelService.isAvailable(match.model))) {
+      console.log(chalk.red(`Model "${modelName}" not found or provider unavailable`));
       return;
     }
-
-    const modelConfig = config.models[modelName];
-    const providerConfig = config.providers[modelConfig.provider];
-    const languageModel = buildLanguageModel(providerConfig, modelConfig.model, modelConfig.maxContextSize);
-
     const agent: Agent = {
       name: "HackMD Agent",
-      modelName: modelConfig.model,
-      maxContextSize: modelConfig.maxContextSize,
+      modelName: match.model.id,
+      maxContextSize: match.model.contextWindow,
       systemPrompt: modelContext.systemPrompt,
       toolRegistry: modelContext.toolRegistry,
-      apiKey: providerConfig?.apiKey,
     };
-
     const newExecutor = new AgentExecutor(
       agent,
       modelContext.context,
-      languageModel,
+      match.model,
+      modelService.models,
     );
-
     this.shell.setExecutor(newExecutor);
-    modelContext.currentModelName = modelName;
-
-    // Persist model selection
-    config.defaultModel = modelName;
+    modelContext.currentModelName = match.canonicalId;
+    config.defaultModel = match.canonicalId;
     await ConfigurationLoader.save(config);
-
-    console.log(chalk.green(`✓ Switched to ${modelName}`));
+    console.log(chalk.green(`✓ Switched to ${match.canonicalId}`));
   }
 
   private async runSetup(): Promise<void> {
     this.shell.suspendReadline();
 
     try {
-      await runInteractiveSetup(this.shell.getModelContext().config);
+      const context = this.shell.getModelContext();
+      if (context.modelService) {
+        await runInteractiveSetup(context.config, context.modelService);
+      } else {
+        await runInteractiveSetup(context.config);
+      }
     } finally {
       this.shell.recreateReadline();
       this.shell.getReadline().prompt();
