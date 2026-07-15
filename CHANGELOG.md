@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.1.0](https://github.com/EastSun566/hackwriter/compare/v0.0.20...v0.1.0) (2026-07-15)
+
+
+### Features
+
+* let ci release ([8ba9745](https://github.com/EastSun566/hackwriter/commit/8ba9745a507b337daa7aa819625bcfd2fc2c4bb8))
+* migrate to `@earendil-works/pi-ai` and support more proveiders ([86a86de](https://github.com/EastSun566/hackwriter/commit/86a86decc714f2608268f99515d3b1bf3f5f86a1))
+
 ### [0.0.20](https://github.com/EastSun566/hackwriter/compare/v0.0.19...v0.0.20) (2026-04-29)
 
 
