@@ -53,6 +53,9 @@ jobs:
       - name: Ensure npm supports OIDC
         run: npm install -g npm@latest
 
+      - name: Build package
+        run: pnpm run build
+
       - name: Publish to NPM via OIDC
         run: npm publish
 

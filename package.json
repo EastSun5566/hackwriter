@@ -39,7 +39,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/EastSun566/hackwriter"
+    "url": "git+https://github.com/EastSun5566/hackwriter.git"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.80.7",
