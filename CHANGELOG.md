@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.2](https://github.com/EastSun5566/hackwriter/compare/v0.1.1...v0.1.2) (2026-07-15)
+
+
+### Bug Fixes
+
+* ollama should allow without api key pass ([faf632d](https://github.com/EastSun5566/hackwriter/commit/faf632de49dc8c4d273d499eb60a15cf76e8cd5c))
+
 ### [0.1.1](https://github.com/EastSun5566/hackwriter/compare/v0.1.0...v0.1.1) (2026-07-15)
 
 ## [0.1.0](https://github.com/EastSun566/hackwriter/compare/v0.0.20...v0.1.0) (2026-07-15)
