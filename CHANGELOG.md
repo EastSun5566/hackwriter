@@ -1,7 +1,12 @@
 # Changelog
 
-All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
+All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.3](https://github.com/EastSun5566/hackwriter/compare/v0.1.2...v0.1.3) (2026-07-23)
+
+### Bug Fixes
+
+* migrate pi runtime to 0.81.1 ([f4b1ede](https://github.com/EastSun5566/hackwriter/commit/f4b1ede1c83a81e5e1a818d44e88be97e9fd7ebd))
 ### [0.1.2](https://github.com/EastSun5566/hackwriter/compare/v0.1.1...v0.1.2) (2026-07-15)
 
 
