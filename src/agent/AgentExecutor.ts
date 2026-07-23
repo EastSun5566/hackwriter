@@ -160,7 +160,7 @@ export class AgentExecutor {
     agent: Agent,
     context: ConversationContext,
     model: Model<string>,
-    models?: Models,
+    models: Models,
   ) {
     this.context = context;
     this.maxContextSize = agent.maxContextSize;
@@ -178,7 +178,7 @@ export class AgentExecutor {
         tools,
         messages: context.getHistory(),
       },
-      ...(models ? { streamFn: models.streamSimple.bind(models) } : {}),
+      streamFn: models.streamSimple.bind(models),
     });
 
     this.piAgent.subscribe((event) => this.handleEvent(event));

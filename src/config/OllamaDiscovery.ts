@@ -32,12 +32,14 @@ function normalizeOllamaHostUrl(baseUrl: string): string {
 
 export async function discoverOllamaModels(
   baseUrl = 'http://localhost:11434',
+  signal?: AbortSignal,
 ): Promise<OllamaModelDefinition[]> {
   const hostUrl = normalizeOllamaHostUrl(baseUrl);
 
   return discoverRemoteModels<OllamaListResponse>({
     loggerScope: 'OllamaDiscovery',
     url: `${hostUrl}/api/tags`,
+    signal,
     parseModels: (data) =>
       data.models.map((model) => ({
         id: model.name,

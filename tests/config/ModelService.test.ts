@@ -10,7 +10,8 @@ const EXPECTED_PROVIDERS = [
   "fireworks", "github-copilot", "google", "google-vertex", "groq",
   "huggingface", "kimi-coding", "minimax", "minimax-cn", "mistral",
   "moonshotai", "moonshotai-cn", "nvidia", "openai", "openai-codex",
-  "opencode", "opencode-go", "openrouter", "together", "vercel-ai-gateway",
+  "opencode", "opencode-go", "openrouter", "qwen-token-plan",
+  "qwen-token-plan-cn", "radius", "together", "vercel-ai-gateway",
   "xai", "xiaomi", "xiaomi-token-plan-ams", "xiaomi-token-plan-cn",
   "xiaomi-token-plan-sgp", "zai", "zai-coding-cn",
 ].sort();
@@ -38,7 +39,7 @@ describe("ModelService", () => {
     expect(ModelService.builtinProviderIds().sort()).toEqual(EXPECTED_PROVIDERS);
     const service = new ModelService(config(), new InMemoryCredentialStore());
     expect(service.models.getProvider("ollama")).toBeDefined();
-    expect(service.models.getProviders()).toHaveLength(36);
+    expect(service.models.getProviders()).toHaveLength(39);
   });
 
   it("uses provider-owned stored API-key auth", async () => {

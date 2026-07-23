@@ -12,7 +12,7 @@ import {
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import {
   builtinModels,
-  getBuiltinProviders,
+  builtinProviders,
 } from "@earendil-works/pi-ai/providers/all";
 
 import type {
@@ -32,7 +32,7 @@ function keylessOpenAICompletionsApi(): ProviderStreams {
   const api = openAICompletionsApi();
   const options = (input?: SimpleStreamOptions): SimpleStreamOptions => ({
     ...input,
-    // pi-ai 0.80.7 documents keyless providers but its OpenAI adapter still
+    // pi-ai documents keyless providers but its OpenAI adapter still
     // requires a non-empty constructor key. Keep the compatibility value local
     // to this transport and suppress the corresponding HTTP auth header.
     apiKey: input?.apiKey ?? KEYLESS_LOCAL_TRANSPORT_KEY,
@@ -134,8 +134,8 @@ function withProviderOverrides(
     auth: source.auth,
     getModels: () => [...models.values()],
     refreshModels: source.refreshModels
-      ? async () => {
-          await source.refreshModels!();
+      ? async (context) => {
+          await source.refreshModels!(context);
           for (const model of source.getModels()) {
             models.set(model.id, {
               ...model,
@@ -168,8 +168,11 @@ function createOllamaProvider(
       },
     },
     models: configuredModels,
-    refreshModels: async () => {
-      const discovered = await discoverOllamaModels(config.baseUrl ?? DEFAULT_OLLAMA_BASE_URL);
+    fetchModels: async ({ signal }) => {
+      const discovered = await discoverOllamaModels(
+        config.baseUrl ?? DEFAULT_OLLAMA_BASE_URL,
+        signal,
+      );
       return discovered.map((model) => ({
         id: model.id,
         name: model.name,
@@ -203,20 +206,14 @@ export class ModelService {
   }
 
   static builtinProviderIds(): string[] {
-    return [...getBuiltinProviders()];
+    return builtinProviders().map((provider) => provider.id);
   }
 
   async initialize(): Promise<void> {
-    const ollamaProviders = this.models
-      .getProviders()
-      .filter((provider) => provider.id === "ollama" || provider.id.startsWith("ollama-"));
-    await Promise.all(
-      ollamaProviders.map((provider) =>
-        this.models.refresh(provider.id).catch((error) => {
-          Logger.debug("ModelService", `Unable to refresh ${provider.id}`, error);
-        }),
-      ),
-    );
+    const result = await this.models.refresh();
+    for (const [providerId, error] of result.errors) {
+      Logger.debug("ModelService", `Unable to refresh ${providerId}`, error);
+    }
     this.rebuildAliases();
   }
 

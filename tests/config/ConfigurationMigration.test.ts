@@ -63,6 +63,9 @@ describe("ConfigurationLoader v2 migration", () => {
       type: "api_key",
       key: "legacy-secret",
     });
+    await expect(credentials.list()).resolves.toEqual([
+      { providerId: "openai", type: "api_key" },
+    ]);
 
     const persisted = JSON.parse(await fs.readFile(configPath, "utf8"));
     expect(persisted.version).toBe(2);
@@ -84,6 +87,7 @@ describe("ConfigurationLoader v2 migration", () => {
     await fs.writeFile(configPath, original);
     const failingStore: CredentialStore = {
       read: async () => undefined,
+      list: async () => [],
       modify: async () => { throw new Error("disk full"); },
       delete: async () => undefined,
     };

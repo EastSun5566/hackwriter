@@ -10,6 +10,7 @@ interface RemoteModelDiscoveryOptions<TResponse> {
   loggerScope: string;
   url: string;
   headers?: Record<string, string>;
+  signal?: AbortSignal;
   parseModels: (response: TResponse) => ModelDefinition[];
 }
 
@@ -19,6 +20,7 @@ export async function discoverRemoteModels<TResponse>(
   try {
     const response = await fetch(options.url, {
       headers: options.headers,
+      signal: options.signal,
     });
 
     if (!response.ok) {

@@ -2,7 +2,7 @@ import { input, password, select } from "@inquirer/prompts";
 import chalk from "chalk";
 import type {
   AuthEvent,
-  AuthLoginCallbacks,
+  AuthInteraction,
   AuthPrompt,
   Credential,
   Provider,
@@ -60,7 +60,7 @@ async function answerAuthPrompt(prompt: AuthPrompt): Promise<string> {
   }
 }
 
-function authCallbacks(): AuthLoginCallbacks {
+function authCallbacks(): AuthInteraction {
   return { prompt: answerAuthPrompt, notify: printAuthEvent };
 }
 

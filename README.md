@@ -31,13 +31,15 @@ HackMD CLI-compatible `HMD_API_ACCESS_TOKEN` and `HMD_API_ENDPOINT_URL` are supp
 
 ## Providers
 
-HackWriter registers all 35 built-in pi-ai text providers:
+HackWriter registers all 38 built-in pi-ai text providers:
 
 - Amazon Bedrock, Ant Ling, Anthropic, Azure OpenAI Responses
 - Cerebras, Cloudflare AI Gateway, Cloudflare Workers AI, DeepSeek, Fireworks
 - GitHub Copilot, Google, Google Vertex AI, Groq, Hugging Face
 - Kimi Coding, MiniMax and MiniMax CN, Mistral, Moonshot AI and Moonshot AI CN
 - NVIDIA, OpenAI, OpenAI Codex, OpenCode and OpenCode Go, OpenRouter
+- Qwen Token Plan and Qwen Token Plan CN
+- Radius
 - Together, Vercel AI Gateway, xAI
 - Xiaomi and its AMS/CN/SGP token-plan variants
 - ZAI and ZAI Coding CN

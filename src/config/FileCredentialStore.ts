@@ -4,6 +4,7 @@ import path from "node:path";
 
 import type {
   Credential,
+  CredentialInfo,
   CredentialStore,
 } from "@earendil-works/pi-ai";
 
@@ -26,6 +27,14 @@ export class FileCredentialStore implements CredentialStore {
   async read(providerId: string): Promise<Credential | undefined> {
     await this.operation;
     return (await this.readAll())[providerId];
+  }
+
+  async list(): Promise<readonly CredentialInfo[]> {
+    await this.operation;
+    return Object.entries(await this.readAll()).map(([providerId, credential]) => ({
+      providerId,
+      type: credential.type,
+    }));
   }
 
   modify(
