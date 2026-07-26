@@ -11,9 +11,7 @@
 ## Install and start
 
 ```sh
-npm install --global hackwriter
-hackwriter setup
-hackwriter
+npx hackwriter
 ```
 
 `hackwriter setup` supports provider API-key login, OAuth login/logout, ambient credential status, and default-model selection. Model-provider credentials are stored in `~/.hackwriter/auth.json`; a HackMD token explicitly entered in setup is stored in the protected `config.json`.
