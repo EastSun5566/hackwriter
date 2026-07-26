@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.4](https://github.com/EastSun5566/hackwriter/compare/v0.1.3...v0.1.4) (2026-07-26)
+
+### Features
+
+* add docker command ([b813518](https://github.com/EastSun5566/hackwriter/commit/b813518282e672f993a1d66f7b19d2c7fc6115c5))
 ## [0.1.3](https://github.com/EastSun5566/hackwriter/compare/v0.1.2...v0.1.3) (2026-07-23)
 
 ### Bug Fixes

@@ -1,6 +1,6 @@
 {
   "name": "hackwriter",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Writing agent for HackMD",
   "type": "module",
   "packageManager": "pnpm@11.13.0",
