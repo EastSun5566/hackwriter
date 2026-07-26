@@ -53,7 +53,7 @@ describe("MCPToolAdapter", () => {
     const adapter = new MCPToolAdapter(mockClient as any, { name: "test" });
     const result = await adapter.call({ param: "value" });
 
-    expect(mockClient.callTool).toHaveBeenCalledWith("test", { param: "value" });
+    expect(mockClient.callTool).toHaveBeenCalledWith("test", { param: "value" }, undefined);
     expect(result.ok).toBe(true);
     expect(result.output).toBe("Success result");
   });
@@ -79,7 +79,7 @@ describe("MCPToolAdapter", () => {
     const result = await adapter.call(params);
 
     expect(approval.request).toHaveBeenCalledWith(params);
-    expect(mockClient.callTool).toHaveBeenCalledWith("create-note", params);
+    expect(mockClient.callTool).toHaveBeenCalledWith("create-note", params, undefined);
     expect(result.ok).toBe(true);
   });
 
@@ -171,7 +171,7 @@ describe("MCPToolAdapter", () => {
 
     const result = await adapter.call({ noteId: "abc" });
 
-    expect(fallbackTool.call).toHaveBeenCalledWith({ noteId: "abc" });
+    expect(fallbackTool.call).toHaveBeenCalledWith({ noteId: "abc" }, undefined);
     expect(result.ok).toBe(true);
     expect(result.output).toBe("Full note content from local API");
   });
@@ -189,9 +189,23 @@ describe("MCPToolAdapter", () => {
 
     const result = await adapter.call({ noteId: "abc" });
 
-    expect(fallbackTool.call).toHaveBeenCalledWith({ noteId: "abc" });
+    expect(fallbackTool.call).toHaveBeenCalledWith({ noteId: "abc" }, undefined);
     expect(result.ok).toBe(true);
     expect(result.output).toBe("Full note content from local API");
+  });
+
+  it("does not start a fallback after cancellation", async () => {
+    const aborted = new DOMException("cancelled", "AbortError");
+    mockClient.callTool.mockRejectedValue(aborted);
+
+    const adapter = new MCPToolAdapter(
+      mockClient as any,
+      { name: "get-note" },
+      { tool: fallbackTool },
+    );
+
+    await expect(adapter.call({ noteId: "abc" })).rejects.toBe(aborted);
+    expect(fallbackTool.call).not.toHaveBeenCalled();
   });
 
   it("should keep remote result when fallback predicate is false", async () => {

@@ -1,6 +1,8 @@
 import type { API } from '@hackmd/api';
 import type { Team } from '@hackmd/api/dist/type.js';
 import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.ts';
+import { rethrowAbortError } from '../../utils/SafeError.ts';
+import { withReadRetry } from './readRetry.ts';
 
 type ListTeamsParams = Record<string, unknown>;
 
@@ -12,13 +14,17 @@ export class ListTeamsTool extends Tool<ListTeamsParams> {
     properties: {},
   };
 
-  constructor(private hackmdClient: API) {
+  constructor(private hackmdClient: API, private readonly maxRetries = 3) {
     super();
   }
 
-  async call(_params: ListTeamsParams): Promise<ToolResult> {
+  async call(_params: ListTeamsParams, signal?: AbortSignal): Promise<ToolResult> {
     try {
-      const teams = await this.hackmdClient.getTeams();
+      const teams = await withReadRetry(
+        () => this.hackmdClient.getTeams(),
+        this.maxRetries,
+        signal,
+      );
       
       if (!teams || teams.length === 0) {
         return this.ok(
@@ -43,6 +49,7 @@ export class ListTeamsTool extends Tool<ListTeamsParams> {
         `${teams.length} teams`,
       );
     } catch (error) {
+      rethrowAbortError(error);
       const errorMsg = `Failed to list teams: ${this.formatError(error)}`;
       return this.error(
         errorMsg,

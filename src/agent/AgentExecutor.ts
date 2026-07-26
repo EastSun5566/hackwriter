@@ -13,6 +13,12 @@ import type { ConversationContext } from "./ConversationContext.ts";
 import { MessageBus } from "../messaging/MessageBus.ts";
 import type { ToolLike } from "../tools/base/ToolRegistry.ts";
 import { Logger } from "../utils/Logger.ts";
+import type { Configuration } from "../config/Configuration.ts";
+import {
+  DEFAULT_MAX_RETRIES_PER_STEP,
+  DEFAULT_MAX_STEPS_PER_RUN,
+} from "../config/constants.ts";
+import { formatSafeError } from "../utils/SafeError.ts";
 
 export interface ExecutorStatus {
   contextUsage: number;
@@ -31,8 +37,8 @@ function wrapTool(tool: ToolLike): AgentTool {
     description: tool.description,
     // Use Type.Unsafe to pass the existing JSON Schema as a TypeBox schema
     parameters: Type.Unsafe(tool.inputSchema),
-    execute: async (_toolCallId, params) => {
-      const result = await tool.call(params as Record<string, unknown>);
+    execute: async (_toolCallId, params, signal) => {
+      const result = await tool.call(params as Record<string, unknown>, signal);
       if (!result.ok) {
         throw new Error(result.message ?? result.output);
       }
@@ -155,18 +161,27 @@ export class AgentExecutor {
   private _abortRequested = false;
   private sawUsageThisRun = false;
   private streamedAssistantText = new Map<string, number>();
+  private runStepCount = 0;
+  private runFailure?: string;
+  private limitReached = false;
+  private readonly loopControl: Configuration["loopControl"];
 
   constructor(
     agent: Agent,
     context: ConversationContext,
     model: Model<string>,
     models: Models,
+    loopControl: Configuration["loopControl"] = {
+      maxStepsPerRun: DEFAULT_MAX_STEPS_PER_RUN,
+      maxRetriesPerStep: DEFAULT_MAX_RETRIES_PER_STEP,
+    },
   ) {
     this.context = context;
     this.maxContextSize = agent.maxContextSize;
     this.systemPrompt = agent.systemPrompt;
     this.messageBus = MessageBus.getInstance();
     this._tokenCount = context.tokenCount;
+    this.loopControl = loopControl;
 
     this.toolsForEstimation = agent.toolRegistry.getAll();
     const tools = this.toolsForEstimation.map(wrapTool);
@@ -209,13 +224,16 @@ export class AgentExecutor {
     this.messageBus.publish({ type: "execution_interrupted" });
   }
 
-  async execute(userInput: string): Promise<void> {
+  async execute(userInput: string): Promise<ExecutionResult> {
     Logger.debug("AgentExecutor", "Starting execution", {
       input: userInput.slice(0, 100),
     });
     this._isExecuting = true;
     this._abortRequested = false;
     this.sawUsageThisRun = false;
+    this.runStepCount = 0;
+    this.runFailure = undefined;
+    this.limitReached = false;
 
     try {
       await this.piAgent.prompt(userInput);
@@ -223,13 +241,29 @@ export class AgentExecutor {
         finalTokens: this._tokenCount,
         totalSteps: this._stepCount,
       });
+      if (this.runFailure) return { status: "failed", error: this.runFailure };
+      if (this.limitReached) {
+        return {
+          status: "limit_reached",
+          error: `Maximum steps per run reached (${this.loopControl.maxStepsPerRun})`,
+        };
+      }
+      if (this._abortRequested) return { status: "aborted" };
+      return { status: "completed" };
     } catch (error) {
       if (isAbortError(error)) {
         Logger.debug("AgentExecutor", "Execution aborted");
-        return;
+        if (this.limitReached) {
+          return {
+            status: "limit_reached",
+            error: `Maximum steps per run reached (${this.loopControl.maxStepsPerRun})`,
+          };
+        }
+        return { status: "aborted" };
       }
-
-      throw error;
+      const message = formatSafeError(error);
+      this.messageBus.publish({ type: "agent_failed", error: message });
+      return { status: "failed", error: message };
     } finally {
       this._isExecuting = false;
     }
@@ -239,6 +273,7 @@ export class AgentExecutor {
     switch (event.type) {
       case "turn_start":
         this._stepCount++;
+        this.runStepCount++;
         this.messageBus.publish({
           type: "step_started",
           stepNumber: this._stepCount,
@@ -255,6 +290,10 @@ export class AgentExecutor {
           }
         }
         this.messageBus.publish({ type: "step_completed" });
+        if (this.runStepCount >= this.loopControl.maxStepsPerRun) {
+          this.limitReached = true;
+          this.piAgent.abort();
+        }
         break;
       }
 
@@ -292,15 +331,21 @@ export class AgentExecutor {
         break;
 
       case "tool_execution_end": {
-        const details = event.result as Record<string, unknown> | undefined;
+        const result = event.result as {
+          content?: { type: string; text?: string }[];
+          details?: Record<string, unknown>;
+        };
+        const details = result.details;
+        const contentText = result.content
+          ?.filter((item) => item.type === "text")
+          .map((item) => item.text ?? "")
+          .join("\n");
         if (event.isError) {
           this.messageBus.publish({
             type: "tool_failed",
             toolCallId: event.toolCallId,
             error:
-              typeof event.result === "string"
-                ? event.result
-                : (details?.output as string | undefined) ?? "Tool failed",
+              (details?.output as string | undefined) ?? contentText ?? "Tool failed",
           });
         } else {
           this.messageBus.publish({
@@ -339,9 +384,10 @@ export class AgentExecutor {
         );
 
         if (assistantError?.errorMessage) {
+          this.runFailure = formatSafeError(assistantError.errorMessage);
           this.messageBus.publish({
             type: "agent_failed",
-            error: assistantError.errorMessage,
+            error: this.runFailure,
           });
         }
 
@@ -416,4 +462,15 @@ export class AgentExecutor {
     this._tokenCount = normalizedTokenCount;
     await this.context.setTokenCount(this._tokenCount);
   }
+}
+
+type ExecutionStatus =
+  | "completed"
+  | "failed"
+  | "aborted"
+  | "limit_reached";
+
+export interface ExecutionResult {
+  status: ExecutionStatus;
+  error?: string;
 }

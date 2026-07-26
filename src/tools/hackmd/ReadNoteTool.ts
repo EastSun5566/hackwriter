@@ -1,6 +1,8 @@
 import type { API } from "@hackmd/api";
 import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.ts";
 import { handleHackMDError } from "./errorHandler.ts";
+import { rethrowAbortError } from "../../utils/SafeError.ts";
+import { withReadRetry } from "./readRetry.ts";
 
 interface ReadNoteParams {
   noteId: string;
@@ -23,13 +25,17 @@ export class ReadNoteTool extends Tool<ReadNoteParams> {
     required: ["noteId"],
   };
 
-  constructor(private hackmdClient: API) {
+  constructor(private hackmdClient: API, private readonly maxRetries = 3) {
     super();
   }
 
-  async call(params: ReadNoteParams): Promise<ToolResult> {
+  async call(params: ReadNoteParams, signal?: AbortSignal): Promise<ToolResult> {
     try {
-      const note = await this.hackmdClient.getNote(params.noteId);
+      const note = await withReadRetry(
+        () => this.hackmdClient.getNote(params.noteId),
+        this.maxRetries,
+        signal,
+      );
 
       const output =
         `**${note.title}**\n\n` +
@@ -43,6 +49,7 @@ export class ReadNoteTool extends Tool<ReadNoteParams> {
         note.title,
       );
     } catch (error) {
+      rethrowAbortError(error);
       const appError = handleHackMDError(error, params.noteId);
       return this.error(
         appError.toUserString(),

@@ -5,6 +5,7 @@ export interface RetryOptions {
   initialDelayMs: number;
   maxDelayMs: number;
   backoffMultiplier: number;
+  shouldRetry: (error: Error) => boolean;
 }
 
 /**
@@ -20,6 +21,7 @@ export class RetryPolicy {
       initialDelayMs: options.initialDelayMs ?? 1000,
       maxDelayMs: options.maxDelayMs ?? 10000,
       backoffMultiplier: options.backoffMultiplier ?? 2,
+      shouldRetry: options.shouldRetry ?? (() => true),
     };
   }
 
@@ -29,11 +31,12 @@ export class RetryPolicy {
    * @returns Result of the function
    * @throws Last error if all retries fail
    */
-  async execute<T>(fn: () => Promise<T>): Promise<T> {
+  async execute<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
     let lastError: Error | undefined;
     let attempt = 0;
 
     while (attempt <= this.options.maxRetries) {
+      signal?.throwIfAborted();
       try {
         if (attempt > 0) {
           Logger.debug("RetryPolicy", `Retry attempt ${attempt}/${this.options.maxRetries}`);
@@ -41,6 +44,7 @@ export class RetryPolicy {
         return await fn();
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+        if (!this.options.shouldRetry(lastError)) throw lastError;
         attempt++;
 
         if (attempt > this.options.maxRetries) {
@@ -57,7 +61,7 @@ export class RetryPolicy {
           error: lastError.message,
         });
 
-        await this.sleep(delay);
+        await this.sleep(delay, signal);
       }
     }
 
@@ -86,7 +90,23 @@ export class RetryPolicy {
     return Math.max(1000, delayWithJitter);
   }
 
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
+    signal.throwIfAborted();
+    return new Promise((resolve, reject) => {
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(
+          signal.reason instanceof Error
+            ? signal.reason
+            : new DOMException("The operation was aborted", "AbortError"),
+        );
+      };
+      const timer = setTimeout(() => {
+        signal.removeEventListener("abort", onAbort);
+        resolve();
+      }, ms);
+      signal.addEventListener("abort", onAbort, { once: true });
+    });
   }
 }

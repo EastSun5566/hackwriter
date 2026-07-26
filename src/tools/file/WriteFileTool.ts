@@ -4,6 +4,7 @@ import { promises as fs } from 'node:fs';
 import { dirname } from 'node:path';
 import { MAX_FILE_SIZE } from '../../config/constants.ts';
 import { PathValidator, SecurityError } from '../../utils/PathValidator.ts';
+import { rethrowAbortError } from '../../utils/SafeError.ts';
 
 interface WriteFileParams {
   filePath: string;
@@ -41,15 +42,17 @@ export class WriteFileTool extends Tool<WriteFileParams> {
     super();
   }
 
-  async call(params: WriteFileParams): Promise<ToolResult> {
+  async call(params: WriteFileParams, signal?: AbortSignal): Promise<ToolResult> {
     // Validate file path using PathValidator
     try {
+      signal?.throwIfAborted();
       const validatedPath = await PathValidator.validateForWrite(
         params.filePath,
         this.workDir,
       );
-      return await this.writeValidated(validatedPath, params);
+      return await this.writeValidated(validatedPath, params, signal);
     } catch (error) {
+      rethrowAbortError(error);
       if (error instanceof SecurityError) {
         return this.error(
           error.message,
@@ -69,6 +72,7 @@ export class WriteFileTool extends Tool<WriteFileParams> {
   private async writeValidated(
     filePath: string,
     params: WriteFileParams,
+    signal?: AbortSignal,
   ): Promise<ToolResult> {
     // Check content size
     if (params.content.length > MAX_FILE_SIZE) {
@@ -84,6 +88,7 @@ export class WriteFileTool extends Tool<WriteFileParams> {
       this.name,
       'write_file',
       `Write to file "${params.filePath}"`,
+      { scope: filePath },
     );
 
     if (!approved) {
@@ -95,6 +100,7 @@ export class WriteFileTool extends Tool<WriteFileParams> {
     }
 
     try {
+      signal?.throwIfAborted();
       const createDirs = params.createDirectories !== false;
       
       if (createDirs) {
@@ -116,6 +122,7 @@ export class WriteFileTool extends Tool<WriteFileParams> {
         'Written',
       );
     } catch (error) {
+      rethrowAbortError(error);
       const errorMsg = `Failed to write file: ${this.formatError(error)}`;
       return this.error(
         errorMsg,

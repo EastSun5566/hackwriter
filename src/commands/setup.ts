@@ -209,7 +209,7 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
 export async function runInteractiveSetup(
   config: Configuration,
   existingService?: ModelService,
-): Promise<void> {
+): Promise<boolean> {
   printSetupHeader();
   const service = existingService ?? new ModelService(config);
   await service.initialize();
@@ -225,14 +225,14 @@ export async function runInteractiveSetup(
   });
 
   if (action === "login") {
-    await configureLogin(service);
+    return configureLogin(service);
   } else if (action === "logout") {
     const statuses = (await service.providerStatuses()).filter(
       (status) => status.available,
     );
     if (statuses.length === 0) {
       console.log(chalk.yellow("No authenticated providers."));
-      return;
+      return false;
     }
     const providerId = await select({
       message: "Select provider to log out:",
@@ -240,13 +240,16 @@ export async function runInteractiveSetup(
     });
     await service.credentials.delete(providerId);
     console.log(chalk.green(`✓ Logged out of ${providerId}`));
+    return true;
   } else if (action === "model") {
-    await selectDefaultModel(config, service);
+    return (await selectDefaultModel(config, service)) !== undefined;
   } else if (action === "hackmd") {
     const apiToken = await password({ message: "Enter HackMD API token", mask: "*" });
-    if (!apiToken) return;
+    if (!apiToken) return false;
     config.services.hackmd = { ...config.services.hackmd, apiToken };
     await ConfigurationLoader.save(config);
     console.log(chalk.green("✓ HackMD API token saved"));
+    return true;
   }
+  return false;
 }

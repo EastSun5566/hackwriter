@@ -20,6 +20,8 @@ interface MutationApprovalOptions {
   rejectedOutput?: string;
   rejectedMessage?: string;
   rejectedBrief?: string;
+  resourceId?: string;
+  allowSession?: boolean;
 }
 
 function errorResult(output: string, message: string, brief: string): ToolResult {
@@ -94,6 +96,10 @@ export async function requestMutationApproval(
     options.toolName,
     options.teamPath ? options.teamAction : options.personalAction,
     options.teamPath ? options.teamDescription : options.personalDescription,
+    {
+      scope: `${options.teamPath ?? "personal"}:${options.resourceId ?? "create"}`,
+      allowSession: options.allowSession,
+    },
   );
 
   if (approved) {

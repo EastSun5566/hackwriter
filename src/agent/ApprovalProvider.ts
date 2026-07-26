@@ -21,6 +21,8 @@ export interface ApprovalProvider {
       toolName: string;
       action: string;
       description: string;
+      scope?: string;
+      allowSession?: boolean;
     },
     mainRl?: readline.Interface,
   ): Promise<ApprovalResponse>;

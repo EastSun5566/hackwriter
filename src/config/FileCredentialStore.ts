@@ -22,7 +22,10 @@ const DEFAULT_AUTH_PATH = path.join(
 export class FileCredentialStore implements CredentialStore {
   private operation: Promise<unknown> = Promise.resolve();
 
-  constructor(readonly filePath = DEFAULT_AUTH_PATH) {}
+  constructor(
+    readonly filePath = DEFAULT_AUTH_PATH,
+    private readonly readOnly = false,
+  ) {}
 
   async read(providerId: string): Promise<Credential | undefined> {
     await this.operation;
@@ -41,6 +44,11 @@ export class FileCredentialStore implements CredentialStore {
     providerId: string,
     fn: (current: Credential | undefined) => Promise<Credential | undefined>,
   ): Promise<Credential | undefined> {
+    if (this.readOnly) {
+      return this.readAll().then(async (credentials) =>
+        (await fn(credentials[providerId])) ?? credentials[providerId]
+      );
+    }
     const next = this.operation.then(async () => {
       const credentials = await this.readAll();
       const credential = await fn(credentials[providerId]);
@@ -58,6 +66,7 @@ export class FileCredentialStore implements CredentialStore {
   }
 
   delete(providerId: string): Promise<void> {
+    if (this.readOnly) return Promise.resolve();
     const next = this.operation.then(async () => {
       const credentials = await this.readAll();
       if (!(providerId in credentials)) return;
@@ -72,7 +81,7 @@ export class FileCredentialStore implements CredentialStore {
   private async readAll(): Promise<CredentialFile> {
     try {
       const content = await fs.readFile(this.filePath, "utf8");
-      await fs.chmod(this.filePath, 0o600);
+      if (!this.readOnly) await fs.chmod(this.filePath, 0o600);
       const value: unknown = JSON.parse(content);
       if (!value || typeof value !== "object" || Array.isArray(value)) {
         throw new Error("Credential file must contain a JSON object");

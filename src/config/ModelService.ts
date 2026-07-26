@@ -2,6 +2,7 @@ import {
   createProvider,
   type Api,
   type AuthResult,
+  type AuthCheck,
   type CredentialStore,
   type Model,
   type MutableModels,
@@ -209,8 +210,8 @@ export class ModelService {
     return builtinProviders().map((provider) => provider.id);
   }
 
-  async initialize(): Promise<void> {
-    const result = await this.models.refresh();
+  async initialize(options: { allowNetwork?: boolean; signal?: AbortSignal } = {}): Promise<void> {
+    const result = await this.models.refresh(options);
     for (const [providerId, error] of result.errors) {
       Logger.debug("ModelService", `Unable to refresh ${providerId}`, error);
     }
@@ -277,15 +278,17 @@ export class ModelService {
     };
   }
 
-  async providerStatuses(): Promise<ProviderStatus[]> {
+  async providerStatuses(resolveAuth = true): Promise<ProviderStatus[]> {
     const statuses: ProviderStatus[] = [];
     for (const provider of this.models.getProviders()) {
       const providerModels = provider.getModels();
-      let auth: AuthResult | undefined;
+      let auth: AuthResult | AuthCheck | undefined;
       let error: string | undefined;
       try {
         auth = providerModels[0]
-          ? await this.models.getAuth(providerModels[0])
+          ? resolveAuth
+            ? await this.models.getAuth(providerModels[0])
+            : await this.models.checkAuth(provider.id)
           : undefined;
       } catch (cause) {
         error = cause instanceof Error ? cause.message : String(cause);

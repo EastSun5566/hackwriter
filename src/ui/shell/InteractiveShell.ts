@@ -1,6 +1,6 @@
 import * as readline from "readline";
 import chalk from "chalk";
-import type { AgentExecutor } from "../../agent/AgentExecutor.ts";
+import type { AgentExecutor, ExecutionResult } from "../../agent/AgentExecutor.ts";
 import type { Configuration } from "../../config/Configuration.ts";
 import type { ConversationContext } from "../../agent/ConversationContext.ts";
 import type { ToolRegistry } from "../../tools/base/ToolRegistry.ts";
@@ -10,6 +10,9 @@ import { MessageBus } from "../../messaging/MessageBus.ts";
 import { Logger } from "../../utils/Logger.ts";
 import type { Disposable } from "../../utils/ResourceManager.ts";
 import type { ModelService } from "../../config/ModelService.ts";
+import { formatSafeError } from "../../utils/SafeError.ts";
+import type { ApprovalManager } from "../../agent/ApprovalManager.ts";
+import type { RuntimeBundle } from "../../runtime/RuntimeCoordinator.ts";
 
 function getShortName(modelId: string): string {
   const normalized = modelId.toLowerCase();
@@ -27,6 +30,12 @@ export interface ModelContext {
   context: ConversationContext;
   toolRegistry: ToolRegistry;
   systemPrompt: string;
+  approvalManager?: ApprovalManager;
+  reloadRuntime?: (
+    config: Configuration,
+    requestedModel?: string,
+  ) => Promise<RuntimeBundle>;
+  commitRuntime?: (runtime: RuntimeBundle) => Promise<void>;
 }
 
 export class InteractiveShell implements Disposable {
@@ -58,7 +67,9 @@ export class InteractiveShell implements Disposable {
 
     // If there's an initial command, execute it first
     if (initialCommand) {
-      await this.handleInput(initialCommand);
+      const result = await this.handleInput(initialCommand);
+      if (result?.status === "aborted") process.exitCode = 130;
+      else if (result && result.status !== "completed") process.exitCode = 1;
       return;
     }
     return new Promise((resolve) => {
@@ -116,7 +127,7 @@ export class InteractiveShell implements Disposable {
     resolve?.();
   };
 
-  private async handleInput(input: string): Promise<void> {
+  private async handleInput(input: string): Promise<ExecutionResult | undefined> {
     if (!input) return;
 
     // Handle commands
@@ -128,13 +139,17 @@ export class InteractiveShell implements Disposable {
     // Execute agent
     try {
       Logger.debug("Shell", "Starting agent execution", { input: input.slice(0, 50) });
-      await this.executor.execute(input);
+      const result = await this.executor.execute(input);
+      if (result.status === "limit_reached") {
+        console.log(chalk.yellow(result.error));
+      }
       Logger.debug("Shell", "Agent execution completed successfully");
+      return result;
     } catch (error) {
       Logger.error("Shell", "Agent execution error", error);
       console.log(
         chalk.red("Error: "),
-        error instanceof Error ? error.message : String(error),
+        formatSafeError(error),
       );
     }
   }
@@ -201,6 +216,15 @@ export class InteractiveShell implements Disposable {
     this.commandRegistry = new CommandRegistry(this);
   }
 
+  applyRuntime(runtime: RuntimeBundle): void {
+    this.modelContext.config = runtime.config;
+    this.modelContext.modelService = runtime.modelService;
+    this.modelContext.currentModelName = runtime.modelMatch.canonicalId;
+    this.modelContext.toolRegistry = runtime.toolRegistry;
+    this.modelContext.systemPrompt = runtime.systemPrompt;
+    this.setExecutor(runtime.executor);
+  }
+
   exit(): void {
     Logger.debug("Shell", "exit() called - closing readline interface");
     this.isClosed = true;
@@ -230,6 +254,7 @@ export class InteractiveShell implements Disposable {
       prompt: this.getPrompt(),
     });
     this.attachReadlineHandlers();
+    this.modelContext.approvalManager?.setMainRl(this.rl);
   }
 
   private printWelcome(): void {

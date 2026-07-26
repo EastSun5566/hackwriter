@@ -165,9 +165,28 @@ describe('HackMD CLI Compatibility', () => {
         hackmd: {
           apiToken: 'cli-config-token',
           apiBaseUrl: 'https://saved.example.com/v1',
-          mcpBaseUrl: DEFAULT_HACKMD_MCP_URL,
+          mcpBaseUrl: undefined,
         },
       });
+    });
+
+    it('does not send a custom API token to the default MCP origin', () => {
+      const resolved = resolveHackMDServiceConfig({
+        apiToken: 'enterprise-token',
+        apiBaseUrl: 'https://enterprise.example/api',
+      });
+
+      expect(resolved.hackmd?.mcpBaseUrl).toBeUndefined();
+    });
+
+    it('uses an explicitly configured MCP endpoint with a custom API', () => {
+      const resolved = resolveHackMDServiceConfig({
+        apiToken: 'enterprise-token',
+        apiBaseUrl: 'https://enterprise.example/api',
+        mcpBaseUrl: 'https://mcp.enterprise.example',
+      });
+
+      expect(resolved.hackmd?.mcpBaseUrl).toBe('https://mcp.enterprise.example');
     });
   });
 });

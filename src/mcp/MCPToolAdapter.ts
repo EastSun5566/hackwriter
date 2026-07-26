@@ -2,6 +2,7 @@ import type { ToolResult, ToolSchema } from "../tools/base/Tool.ts";
 import type { ToolLike } from "../tools/base/ToolRegistry.ts";
 import type { MCPClient, MCPToolDefinition } from "./MCPClient.ts";
 import { Logger } from "../utils/Logger.ts";
+import { formatSafeError, rethrowAbortError } from "../utils/SafeError.ts";
 
 export interface MCPToolFallback {
   tool: ToolLike;
@@ -40,7 +41,7 @@ export class MCPToolAdapter implements ToolLike {
     };
   }
 
-  async call(params: Record<string, unknown>): Promise<ToolResult> {
+  async call(params: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResult> {
     const approvalResult = await this.requestApproval(params);
     if (approvalResult) {
       return approvalResult;
@@ -49,13 +50,14 @@ export class MCPToolAdapter implements ToolLike {
     try {
       Logger.debug("MCPToolAdapter", `Calling remote tool: ${this.name}`);
 
-      const response = await this.mcpClient.callTool(this.name, params);
+      const response = await this.mcpClient.callTool(this.name, params, signal);
       const result = this.toToolResult(response);
 
       if (await this.shouldUseFallback(params, response, result)) {
         const fallbackResult = await this.tryFallback(
           params,
           "Remote response matched fallback predicate",
+          signal,
         );
 
         if (fallbackResult?.ok) {
@@ -72,12 +74,14 @@ export class MCPToolAdapter implements ToolLike {
 
       return result;
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
+      rethrowAbortError(error);
+      const message = formatSafeError(error);
       Logger.error("MCPToolAdapter", `Failed to call ${this.name}: ${message}`);
 
       const fallbackResult = await this.tryFallback(
         params,
         `Remote tool call failed: ${message}`,
+        signal,
       );
       if (fallbackResult) {
         return fallbackResult;
@@ -102,7 +106,7 @@ export class MCPToolAdapter implements ToolLike {
     try {
       return (await this.approval.request(params)) ?? null;
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatSafeError(error);
       Logger.error(
         "MCPToolAdapter",
         `Approval check failed for ${this.name}: ${message}`,
@@ -160,6 +164,7 @@ export class MCPToolAdapter implements ToolLike {
     try {
       return await this.fallback.shouldFallback(params, response, result);
     } catch (error) {
+      rethrowAbortError(error);
       const message = error instanceof Error ? error.message : String(error);
       Logger.warn(
         "MCPToolAdapter",
@@ -172,6 +177,7 @@ export class MCPToolAdapter implements ToolLike {
   private async tryFallback(
     params: Record<string, unknown>,
     reason: string,
+    signal?: AbortSignal,
   ): Promise<ToolResult | null> {
     if (!this.fallback) {
       return null;
@@ -183,7 +189,7 @@ export class MCPToolAdapter implements ToolLike {
     );
 
     try {
-      return await this.fallback.tool.call(params);
+      return await this.fallback.tool.call(params, signal);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       Logger.warn(

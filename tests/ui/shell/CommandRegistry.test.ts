@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { CommandRegistry } from "../../../src/ui/shell/CommandRegistry.ts";
 import type { InteractiveShell } from "../../../src/ui/shell/InteractiveShell.ts";
 import { runInteractiveSetup } from "../../../src/commands/setup.ts";
+import { ConfigurationLoader } from "../../../src/config/ConfigurationLoader.ts";
 
 // Mock ConfigurationLoader
 vi.mock("../../../src/config/ConfigurationLoader.ts", () => ({
@@ -12,7 +13,7 @@ vi.mock("../../../src/config/ConfigurationLoader.ts", () => ({
 }));
 
 vi.mock("../../../src/commands/setup.ts", () => ({
-  runInteractiveSetup: vi.fn().mockResolvedValue(undefined),
+  runInteractiveSetup: vi.fn().mockResolvedValue(false),
 }));
 
 // Mock AgentExecutor as a class
@@ -33,12 +34,14 @@ describe("CommandRegistry", () => {
   let mockConfig: any;
   let registry: CommandRegistry;
   let mockModelService: any;
+  let storedCredentials: Map<string, any>;
   let consoleSpy: ReturnType<typeof vi.spyOn>;
   const mockPrompt = vi.fn();
 
   beforeEach(() => {
     mockConfig = {
       version: 2,
+      defaultModel: "model1",
       models: {
         model1: {
           provider: "provider1",
@@ -61,7 +64,12 @@ describe("CommandRegistry", () => {
         maxStepsPerRun: 100,
         maxRetriesPerStep: 3,
       },
+      services: {},
     };
+
+    storedCredentials = new Map([
+      ["provider1", { type: "api_key", key: "existing-key" }],
+    ]);
 
     const runtimeModels = {
       model1: {
@@ -88,6 +96,21 @@ describe("CommandRegistry", () => {
       ]),
       search: vi.fn(() => ({ matches: [], total: 0 })),
       models: {},
+      credentials: {
+        list: vi.fn(async () => [...storedCredentials].map(([providerId, credential]) => ({
+          providerId,
+          type: credential.type,
+        }))),
+        read: vi.fn(async (providerId: string) => storedCredentials.get(providerId)),
+        delete: vi.fn(async (providerId: string) => {
+          storedCredentials.delete(providerId);
+        }),
+        modify: vi.fn(async (providerId: string, update: (value: any) => Promise<any>) => {
+          const value = await update(storedCredentials.get(providerId));
+          if (value) storedCredentials.set(providerId, value);
+          return value;
+        }),
+      },
     };
 
     mockShell = {
@@ -123,6 +146,7 @@ describe("CommandRegistry", () => {
       suspendReadline: vi.fn(),
       recreateReadline: vi.fn(),
       getReadline: vi.fn(() => ({ prompt: mockPrompt })),
+      applyRuntime: vi.fn(),
     } as Partial<InteractiveShell>;
 
     consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -216,6 +240,40 @@ describe("CommandRegistry", () => {
       await registry.execute("config");
 
       expect(runInteractiveSetup).toHaveBeenCalledWith(mockConfig, mockModelService);
+    });
+
+    it("reloads and applies runtime after setup changes", async () => {
+      const runtime = { executor: {}, modelMatch: { canonicalId: "provider1/phi3" } };
+      const modelContext = (mockShell.getModelContext as ReturnType<typeof vi.fn>)();
+      modelContext.reloadRuntime = vi.fn().mockResolvedValue(runtime);
+      modelContext.commitRuntime = vi.fn().mockResolvedValue(undefined);
+      (mockShell.getModelContext as ReturnType<typeof vi.fn>).mockReturnValue(modelContext);
+      vi.mocked(runInteractiveSetup).mockResolvedValueOnce(true);
+
+      await registry.execute("setup");
+
+      expect(modelContext.reloadRuntime).toHaveBeenCalledWith(mockConfig, mockConfig.defaultModel);
+      expect(mockShell.applyRuntime).toHaveBeenCalledWith(runtime);
+      expect(modelContext.commitRuntime).toHaveBeenCalledWith(runtime);
+    });
+
+    it("rolls back config and credentials when runtime reload fails", async () => {
+      const modelContext = (mockShell.getModelContext as ReturnType<typeof vi.fn>)();
+      modelContext.reloadRuntime = vi.fn().mockRejectedValue(new Error("reload failed"));
+      (mockShell.getModelContext as ReturnType<typeof vi.fn>).mockReturnValue(modelContext);
+      vi.mocked(runInteractiveSetup).mockImplementationOnce(async () => {
+        mockConfig.defaultModel = "broken/model";
+        await mockModelService.credentials.modify("new-provider", () =>
+          Promise.resolve({ type: "api_key", key: "new-key" })
+        );
+        return true;
+      });
+
+      await registry.execute("setup");
+
+      expect(mockConfig.defaultModel).toBe("model1");
+      expect([...storedCredentials.keys()]).toEqual(["provider1"]);
+      expect(ConfigurationLoader.save).toHaveBeenCalledWith(mockConfig);
     });
   });
 

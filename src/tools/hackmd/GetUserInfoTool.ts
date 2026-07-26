@@ -1,5 +1,7 @@
 import type { API } from "@hackmd/api";
 import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.ts";
+import { rethrowAbortError } from "../../utils/SafeError.ts";
+import { withReadRetry } from "./readRetry.ts";
 
 type GetUserInfoParams = Record<string, unknown>;
 
@@ -11,13 +13,17 @@ export class GetUserInfoTool extends Tool<GetUserInfoParams> {
     properties: {},
   };
 
-  constructor(private hackmdClient: API) {
+  constructor(private hackmdClient: API, private readonly maxRetries = 3) {
     super();
   }
 
-  async call(_params: GetUserInfoParams): Promise<ToolResult> {
+  async call(_params: GetUserInfoParams, signal?: AbortSignal): Promise<ToolResult> {
     try {
-      const user = await this.hackmdClient.getMe();
+      const user = await withReadRetry(
+        () => this.hackmdClient.getMe(),
+        this.maxRetries,
+        signal,
+      );
 
       const output =
         `**User Information**\n\n` +
@@ -32,6 +38,7 @@ export class GetUserInfoTool extends Tool<GetUserInfoParams> {
         user.name ?? "User info",
       );
     } catch (error) {
+      rethrowAbortError(error);
       const errorMsg = `Failed to get user info: ${this.formatError(error)}`;
       return this.error(errorMsg, errorMsg, "Failed");
     }

@@ -2,7 +2,8 @@ import type { API } from "@hackmd/api";
 import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.ts";
 import type { ApprovalManager } from "../../agent/ApprovalManager.ts";
 import { handleHackMDError } from "./errorHandler.ts";
-import { withRetry, shouldRetryHttpError } from "../../utils/retry.ts";
+import { isNetworkError } from "../../utils/retry.ts";
+import { rethrowAbortError } from "../../utils/SafeError.ts";
 import {
   NotePermissionRole,
   requestMutationApproval,
@@ -62,7 +63,7 @@ export class CreateNoteTool extends Tool<CreateNoteParams> {
     super();
   }
 
-  async call(params: CreateNoteParams): Promise<ToolResult> {
+  async call(params: CreateNoteParams, signal?: AbortSignal): Promise<ToolResult> {
     const titleError = validateNoteTitle(params.title);
     if (titleError) {
       return titleError;
@@ -101,17 +102,10 @@ export class CreateNoteTool extends Tool<CreateNoteParams> {
         writePermission: params.writePermission ?? NotePermissionRole.OWNER,
       };
 
-      const note = await withRetry(
-        async () => {
-          return isTeamNote
-            ? await this.hackmdClient.createTeamNote(params.teamPath!, noteData)
-            : await this.hackmdClient.createNote(noteData);
-        },
-        {
-          maxRetries: 3,
-          shouldRetry: shouldRetryHttpError,
-        }
-      );
+      signal?.throwIfAborted();
+      const note = isTeamNote
+        ? await this.hackmdClient.createTeamNote(params.teamPath!, noteData)
+        : await this.hackmdClient.createNote(noteData);
 
       const output = isTeamNote
         ? `✅ Team note created successfully!\n\n` +
@@ -130,6 +124,14 @@ export class CreateNoteTool extends Tool<CreateNoteParams> {
         `Created: ${params.title}`,
       );
     } catch (error) {
+      rethrowAbortError(error);
+      if (isNetworkError(error)) {
+        return this.error(
+          'The create request had an ambiguous network failure. The note may already exist; check HackMD before retrying.',
+          'Create outcome is unknown; automatic retry was skipped to avoid duplicates',
+          'Outcome unknown',
+        );
+      }
       const appError = handleHackMDError(
         error,
         `Failed to create ${isTeamNote ? "team " : ""}note`,

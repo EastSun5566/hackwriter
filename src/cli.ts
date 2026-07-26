@@ -7,11 +7,9 @@ import { fileURLToPath } from "url";
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { AgentExecutor } from "./agent/AgentExecutor.ts";
 import { ConversationContext } from "./agent/ConversationContext.ts";
 import { ApprovalManager } from "./agent/ApprovalManager.ts";
 import { MessageBus } from "./messaging/MessageBus.ts";
-import { ToolRegistry } from "./tools/base/ToolRegistry.ts";
 import { ConfigurationLoader } from "./config/ConfigurationLoader.ts";
 import { SessionManager } from "./session/SessionManager.ts";
 import { InteractiveShell } from "./ui/shell/InteractiveShell.ts";
@@ -20,18 +18,11 @@ import { ModelService } from "./config/ModelService.ts";
 import { Logger } from "./utils/Logger.ts";
 import { ErrorFactory } from "./utils/ErrorTypes.ts";
 import { SensitiveDataRedactor } from "./utils/SensitiveDataRedactor.ts";
-import type { Agent } from "./agent/Agent.ts";
-
-import {
-  createLocalHackMDTools,
-  registerLocalHackMDTools,
-} from "./tools/hackmd/index.ts";
-
-import {
-  ReadFileTool,
-  WriteFileTool,
-  ListFilesTool,
-} from "./tools/file/index.ts";
+import { formatSafeError } from "./utils/SafeError.ts";
+import { loadHackMDCLIConfig } from "./config/HackMDConfigLoader.ts";
+import { resolveHackMDServiceConfig } from "./config/HackMDServiceResolution.ts";
+import { buildRuntime, type RuntimeBundle } from "./runtime/RuntimeCoordinator.ts";
+import { doctorCommand } from "./commands/doctor.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -61,24 +52,24 @@ program
       if (error instanceof Error && error.name === 'AppError') {
         // Type assertion is safe here because we checked error.name
         const appError = error as unknown as { toUserString: () => string };
-        console.error(chalk.red('\n' + appError.toUserString()));
+        console.error(chalk.red('\n' + formatSafeError(appError.toUserString())));
         
         // Show stack trace in debug mode
         if (options.debug) {
           Logger.error('CLI', 'Fatal error details', error);
         }
       } else if (error instanceof Error) {
-        console.error(chalk.red('\n❌ Fatal error: ' + error.message));
+        console.error(chalk.red('\n❌ Fatal error: ' + formatSafeError(error)));
         
         if (options.debug) {
           console.error(chalk.gray('\nStack trace:'));
-          console.error(chalk.gray(error.stack ?? 'No stack trace available'));
+          console.error(chalk.gray(formatSafeError(error, true)));
         }
       } else {
-        console.error(chalk.red('\n❌ Fatal error: ' + String(error)));
+        console.error(chalk.red('\n❌ Fatal error: ' + formatSafeError(error)));
       }
       
-      process.exit(1);
+      process.exitCode = 1;
     }
   });
 
@@ -86,6 +77,12 @@ program
   .command("setup")
   .description("Configure HackWriter for first-time use")
   .action(() => setupCommand(false));
+
+program
+  .command("doctor")
+  .description("Diagnose HackWriter configuration and connectivity")
+  .option("--json", "Output a machine-readable report")
+  .action((options) => doctorCommand(packageJson.version, options));
 
 async function runAgent(options: {
   command?: string;
@@ -96,7 +93,22 @@ async function runAgent(options: {
 }): Promise<void> {
   let context: ConversationContext | undefined;
   let shell: InteractiveShell | undefined;
-  let runtimeMcpClient: { dispose(): Promise<void> } | undefined;
+  let runtime: RuntimeBundle | undefined;
+  let shuttingDown = false;
+  let forcedExitTimer: NodeJS.Timeout | undefined;
+  const beginShutdown = (exitCode: number): void => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    process.exitCode = exitCode;
+    shell?.getExecutor().abort();
+    shell?.exit();
+    forcedExitTimer = setTimeout(() => process.exit(exitCode), 5_000);
+    forcedExitTimer.unref();
+  };
+  const handleTermination = (): void => beginShutdown(143);
+  const handleInterrupt = (): void => beginShutdown(130);
+  process.once("SIGTERM", handleTermination);
+  process.once("SIGINT", handleInterrupt);
 
   if (options.debug) {
     Logger.setLevel("debug");
@@ -113,7 +125,11 @@ async function runAgent(options: {
     );
 
     let availableModels = await modelService.availableModels();
-    const needsSetup = !config.services.hackmd?.apiToken || availableModels.length === 0;
+    let resolvedHackMD = resolveHackMDServiceConfig(
+      config.services.hackmd,
+      await loadHackMDCLIConfig(),
+    );
+    const needsSetup = !resolvedHackMD.hackmd || availableModels.length === 0;
 
     if (needsSetup) {
       console.log(
@@ -131,8 +147,12 @@ async function runAgent(options: {
       modelService = new ModelService(config);
       await modelService.initialize();
       availableModels = await modelService.availableModels();
+      resolvedHackMD = resolveHackMDServiceConfig(
+        config.services.hackmd,
+        await loadHackMDCLIConfig(),
+      );
 
-      if (!config.services.hackmd?.apiToken || availableModels.length === 0) {
+      if (!resolvedHackMD.hackmd || availableModels.length === 0) {
         console.log(chalk.gray("\nSetup cancelled or incomplete."));
         return;
       }
@@ -166,112 +186,44 @@ async function runAgent(options: {
           : "Run 'hackwriter setup' or choose a model with /model.",
       );
     }
-    const languageModel = modelMatch.model;
     Logger.debug("CLI", `Model: ${modelMatch.canonicalId}`);
 
-    if (!config.services.hackmd) {
-      throw ErrorFactory.configuration(
-        "HackMD service configuration is missing",
-        "Please run 'hackwriter setup' to configure HackMD API token"
-      );
-    }
-
     const approvalManager = new ApprovalManager(undefined, options.yolo ?? false);
-    const toolRegistry = new ToolRegistry();
-
-    const hackmdConfig = config.services.hackmd;
-    const localHackMDTools = createLocalHackMDTools(
-      hackmdConfig.apiToken,
-      approvalManager,
-    );
-    const localHackMDToolsByName = new Map(
-      localHackMDTools.map((tool) => [tool.name, tool] as const),
-    );
-    let usedMcp = false;
-
-    // Try MCP if mcpBaseUrl is configured
-    if (hackmdConfig.mcpBaseUrl) {
-      Logger.info("CLI", "Trying Remote MCP mode...");
-      
-      // Dynamic import to avoid loading MCP SDK when not needed
-      const { MCPClient, MCPToolAdapter } = await import("./mcp/index.ts");
-      const { buildHackMDMcpApproval, buildHackMDMcpFallback } = await import(
-        "./mcp/HackMDMcpToolPolicies.ts"
-      );
-      
-      const mcpClient = new MCPClient({
-        serverUrl: hackmdConfig.mcpBaseUrl,
-        apiToken: hackmdConfig.apiToken,
-      });
-      runtimeMcpClient = mcpClient;
-
-      try {
-        await mcpClient.connect();
-        
-        // Register MCP tools
-        const mcpTools = await mcpClient.listTools();
-        for (const toolDef of mcpTools) {
-          toolRegistry.register(
-            new MCPToolAdapter(
-              mcpClient,
-              toolDef,
-              buildHackMDMcpFallback(toolDef.name, localHackMDToolsByName),
-              buildHackMDMcpApproval(toolDef.name, approvalManager),
-            ),
-          );
-          Logger.debug("CLI", `Registered MCP tool: ${toolDef.name}`);
-        }
-
-        Logger.info("CLI", `Connected to MCP server with ${mcpTools.length} tools`);
-        usedMcp = true;
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        console.warn(chalk.red(`Failed to connect to MCP server: ${msg}`));
-        console.warn(chalk.yellow("Falling back use HackMD API"));
-      }
-    }
-
-    // Use local HackMD API if MCP not used
-    if (!usedMcp) {
-      Logger.info("CLI", "Using Local HackMD API mode");
-      registerLocalHackMDTools(toolRegistry, localHackMDTools);
-    }
-
-    // File tools (always local)
-    toolRegistry.register(new ReadFileTool(workDir));
-    toolRegistry.register(new WriteFileTool(approvalManager, workDir));
-    toolRegistry.register(new ListFilesTool(workDir));
-
-    Logger.debug("CLI", `Registered ${toolRegistry.getAll().length} tools`);
-
-    // Create Agent
-    const agent: Agent = {
-      name: "HackMD Agent",
-      modelName: languageModel.id,
-      maxContextSize: languageModel.contextWindow,
-      systemPrompt: buildSystemPrompt(workDir),
-      toolRegistry,
-    };
 
     // Create conversation context
     context = new ConversationContext(session.historyFile);
     await context.loadFromDisk();
 
-    // Create executor
-    const executor = new AgentExecutor(
-      agent,
-      context,
-      languageModel,
-      modelService.models,
-    );
-
-    shell = new InteractiveShell(executor, {
-      currentModelName: modelMatch.canonicalId,
+    runtime = await buildRuntime({
       config,
-      modelService,
       context,
-      toolRegistry,
-      systemPrompt: agent.systemPrompt,
+      approvalManager,
+      workDir,
+      modelName: modelMatch.canonicalId,
+    });
+
+    shell = new InteractiveShell(runtime.executor, {
+      currentModelName: runtime.modelMatch.canonicalId,
+      config: runtime.config,
+      modelService: runtime.modelService,
+      context,
+      toolRegistry: runtime.toolRegistry,
+      systemPrompt: runtime.systemPrompt,
+      approvalManager,
+      reloadRuntime: async (nextConfig, requestedModel) => {
+        return buildRuntime({
+          config: nextConfig,
+          context: context!,
+          approvalManager,
+          workDir,
+          modelName: requestedModel,
+        });
+      },
+      commitRuntime: async (next) => {
+        const previous = runtime;
+        runtime = next;
+        await previous?.mcpClient?.dispose().catch(() => undefined);
+      },
     });
 
     // Connect approval manager to shell's readline to prevent stdin conflicts
@@ -279,6 +231,9 @@ async function runAgent(options: {
 
     await shell.start(options.command);
   } finally {
+    process.off("SIGTERM", handleTermination);
+    process.off("SIGINT", handleInterrupt);
+    if (forcedExitTimer) clearTimeout(forcedExitTimer);
     shell?.dispose();
     MessageBus.getInstance().dispose();
 
@@ -288,42 +243,22 @@ async function runAgent(options: {
       } catch (error) {
         Logger.warn(
           "CLI",
-          `Failed to close conversation context: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to close conversation context: ${formatSafeError(error)}`,
         );
       }
     }
 
-    if (runtimeMcpClient) {
+    if (runtime?.mcpClient) {
       try {
-        await runtimeMcpClient.dispose();
+        await runtime.mcpClient.dispose();
       } catch (error) {
         Logger.warn(
           "CLI",
-          `Failed to dispose MCP client: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to dispose MCP client: ${formatSafeError(error)}`,
         );
       }
     }
   }
-}
-
-function buildSystemPrompt(workDir: string): string {
-  return `You are a HackMD assistant. Help users manage their HackMD notes.
-
-Available tools:
-- list_notes, read_note, create_note, update_note, delete_note (use teamPath for team notes)
-- get_user_info, list_teams, get_history
-- search_notes, export_note
-- read_file, write_file, list_files (for local file operations)
-
-Guidelines:
-- Use markdown formatting
-- Be concise in responses
-- Show note titles and IDs clearly
-- For team notes, include teamPath parameter
-- ALWAYS use read_file tool to read local files before uploading to HackMD
-- Combine tools for complex operations (e.g., upload local file = read_file + create_note)
-
-Working directory: ${workDir}`;
 }
 
 /**
@@ -352,12 +287,14 @@ function setupCleanupHandlers(): void {
     }
   };
 
-  // Register cleanup handlers
+  // Register cleanup handler. Runtime signals are handled by runAgent so async
+  // session and transport cleanup can complete.
   process.on('exit', cleanup);
-  process.on('SIGTERM', () => {
-    cleanup();
-    process.exit(0);
-  });
 }
 
-program.parse();
+try {
+  await program.parseAsync();
+} catch (error) {
+  console.error(chalk.red(`\n❌ Fatal error: ${formatSafeError(error)}`));
+  process.exitCode = 1;
+}

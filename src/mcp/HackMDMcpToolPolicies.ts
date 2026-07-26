@@ -4,6 +4,35 @@ import type { ToolResult } from "../tools/base/Tool.ts";
 import type { ToolLike } from "../tools/base/ToolRegistry.ts";
 import type { MCPToolApproval, MCPToolFallback } from "./MCPToolAdapter.ts";
 
+export type HackMDMcpToolKind = "read" | "mutation";
+
+const READ_ONLY_TOOLS = new Set([
+  "get-me",
+  "get-user-info",
+  "list-notes",
+  "get-notes",
+  "get-note",
+  "list-teams",
+  "get-history",
+  "get-note-history",
+  "search-notes",
+]);
+
+const MUTATION_TOOLS = new Set([
+  "create-note",
+  "update-note",
+  "delete-note",
+  "create-team-note",
+  "update-team-note",
+  "delete-team-note",
+]);
+
+export function classifyHackMDMcpTool(name: string): HackMDMcpToolKind | undefined {
+  if (READ_ONLY_TOOLS.has(name)) return "read";
+  if (MUTATION_TOOLS.has(name)) return "mutation";
+  return undefined;
+}
+
 export function buildHackMDMcpFallback(
   mcpToolName: string,
   localHackMDToolsByName: Map<string, ToolLike>,
@@ -57,6 +86,7 @@ export function buildHackMDMcpApproval(
             teamAction: "update_team_note",
             personalDescription: `Update note ${getNoteId(params)}`,
             teamDescription: `Update team note ${getNoteId(params)} in team "${getTeamLabel(params)}"`,
+            resourceId: getNoteId(params),
           }),
       };
 
@@ -74,6 +104,8 @@ export function buildHackMDMcpApproval(
             rejectedOutput: "Deletion cancelled by user",
             rejectedMessage: "Deletion cancelled by user",
             rejectedBrief: "Cancelled",
+            resourceId: getNoteId(params),
+            allowSession: false,
           }),
       };
 
@@ -102,6 +134,7 @@ export function buildHackMDMcpApproval(
             teamAction: "update_team_note",
             personalDescription: `Update team note ${getNoteId(params)} in team "${getTeamLabel(params)}"`,
             teamDescription: `Update team note ${getNoteId(params)} in team "${getTeamLabel(params)}"`,
+            resourceId: getNoteId(params),
           }),
       };
 
@@ -119,6 +152,8 @@ export function buildHackMDMcpApproval(
             rejectedOutput: "Deletion cancelled by user",
             rejectedMessage: "Deletion cancelled by user",
             rejectedBrief: "Cancelled",
+            resourceId: getNoteId(params),
+            allowSession: false,
           }),
       };
 

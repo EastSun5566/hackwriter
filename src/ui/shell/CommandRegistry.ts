@@ -2,8 +2,11 @@ import chalk from "chalk";
 import type { InteractiveShell } from "./InteractiveShell.ts";
 import { AgentExecutor } from "../../agent/AgentExecutor.ts";
 import { ConfigurationLoader } from "../../config/ConfigurationLoader.ts";
+import type { Configuration } from "../../config/Configuration.ts";
 import type { Agent } from "../../agent/Agent.ts";
 import { runInteractiveSetup } from "../../commands/setup.ts";
+import { formatSafeError } from "../../utils/SafeError.ts";
+import type { Credential, CredentialStore } from "@earendil-works/pi-ai";
 
 type CommandHandler = (args: string[]) => Promise<void> | void;
 
@@ -98,7 +101,7 @@ export class CommandRegistry {
     } catch (error) {
       console.log(
         chalk.red("Command failed: "),
-        error instanceof Error ? error.message : String(error),
+        formatSafeError(error),
       );
     }
   }
@@ -193,6 +196,7 @@ export class CommandRegistry {
       modelContext.context,
       match.model,
       modelService.models,
+      config.loopControl,
     );
     this.shell.setExecutor(newExecutor);
     modelContext.currentModelName = match.canonicalId;
@@ -206,14 +210,66 @@ export class CommandRegistry {
 
     try {
       const context = this.shell.getModelContext();
-      if (context.modelService) {
-        await runInteractiveSetup(context.config, context.modelService);
-      } else {
-        await runInteractiveSetup(context.config);
+      const configSnapshot = structuredClone(context.config);
+      const credentialSnapshot = context.modelService
+        ? await snapshotCredentials(context.modelService.credentials)
+        : undefined;
+      let changed: boolean;
+      try {
+        if (context.modelService) {
+          changed = await runInteractiveSetup(context.config, context.modelService);
+        } else {
+          changed = await runInteractiveSetup(context.config);
+        }
+        if (changed && context.reloadRuntime) {
+          const runtime = await context.reloadRuntime(
+            context.config,
+            context.config.defaultModel,
+          );
+          try {
+            this.shell.applyRuntime(runtime);
+            await context.commitRuntime?.(runtime);
+          } catch (error) {
+            await runtime.mcpClient?.dispose().catch(() => undefined);
+            throw error;
+          }
+        }
+      } catch (error) {
+        if (credentialSnapshot && context.modelService) {
+          await restoreCredentials(context.modelService.credentials, credentialSnapshot);
+        }
+        replaceConfig(context.config, configSnapshot);
+        await ConfigurationLoader.save(context.config);
+        throw error;
       }
     } finally {
       this.shell.recreateReadline();
       this.shell.getReadline().prompt();
     }
   }
+}
+
+async function snapshotCredentials(
+  store: CredentialStore,
+): Promise<Map<string, Credential>> {
+  const snapshot = new Map<string, Credential>();
+  for (const { providerId } of await store.list()) {
+    const credential = await store.read(providerId);
+    if (credential) snapshot.set(providerId, structuredClone(credential));
+  }
+  return snapshot;
+}
+
+async function restoreCredentials(
+  store: CredentialStore,
+  snapshot: ReadonlyMap<string, Credential>,
+): Promise<void> {
+  for (const { providerId } of await store.list()) await store.delete(providerId);
+  for (const [providerId, credential] of snapshot) {
+    await store.modify(providerId, () => Promise.resolve(structuredClone(credential)));
+  }
+}
+
+function replaceConfig(target: Configuration, source: Configuration): void {
+  Object.assign(target, structuredClone(source));
 }

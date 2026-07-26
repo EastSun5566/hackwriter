@@ -16,9 +16,13 @@ export default defineConfig({
         '**/*.test.ts',
         '**/types/**',
         'dist/**',
-        'src/cli.ts', // CLI entry point
-        'src/commands/**', // Interactive commands
       ],
+      thresholds: {
+        statements: 63,
+        branches: 53,
+        functions: 68,
+        lines: 64,
+      },
     },
     mockReset: true,
     restoreMocks: true,

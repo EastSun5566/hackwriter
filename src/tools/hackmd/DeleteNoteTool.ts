@@ -3,6 +3,7 @@ import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.ts";
 import type { ApprovalManager } from "../../agent/ApprovalManager.ts";
 import { handleHackMDError } from "./errorHandler.ts";
 import { withRetry, shouldRetryHttpError } from "../../utils/retry.ts";
+import { rethrowAbortError } from "../../utils/SafeError.ts";
 import {
   requestMutationApproval,
   validateNoteId,
@@ -36,11 +37,12 @@ export class DeleteNoteTool extends Tool<DeleteNoteParams> {
   constructor(
     private hackmdClient: API,
     private approvalManager: ApprovalManager,
+    private readonly maxRetries = 3,
   ) {
     super();
   }
 
-  async call(params: DeleteNoteParams): Promise<ToolResult> {
+  async call(params: DeleteNoteParams, signal?: AbortSignal): Promise<ToolResult> {
     const noteIdError = validateNoteId(params.noteId);
     if (noteIdError) {
       return noteIdError;
@@ -55,6 +57,8 @@ export class DeleteNoteTool extends Tool<DeleteNoteParams> {
       teamAction: "delete_team_note",
       personalDescription: `Delete note ${params.noteId}? This action cannot be undone.`,
       teamDescription: `Delete team note ${params.noteId} from team "${params.teamPath}"? This action cannot be undone.`,
+      resourceId: params.noteId,
+      allowSession: false,
       rejectedOutput: "Deletion cancelled by user",
       rejectedMessage: "Deletion cancelled by user",
       rejectedBrief: "Cancelled",
@@ -74,8 +78,9 @@ export class DeleteNoteTool extends Tool<DeleteNoteParams> {
           }
         },
         {
-          maxRetries: 3,
+          maxRetries: this.maxRetries,
           shouldRetry: shouldRetryHttpError,
+          signal,
         }
       );
 
@@ -89,6 +94,7 @@ export class DeleteNoteTool extends Tool<DeleteNoteParams> {
         "Deleted",
       );
     } catch (error) {
+      rethrowAbortError(error);
       const appError = handleHackMDError(
         error,
         `Failed to delete ${isTeamNote ? "team " : ""}note`,

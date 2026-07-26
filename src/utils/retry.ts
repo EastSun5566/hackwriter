@@ -30,6 +30,8 @@ export interface RetryOptions {
    * Callback called before each retry
    */
   onRetry?: (error: unknown, attempt: number) => void;
+
+  signal?: AbortSignal;
 }
 
 /**
@@ -58,11 +60,13 @@ export async function withRetry<T>(
     maxDelayMs = 30000,
     shouldRetry = () => true,
     onRetry,
+    signal,
   } = options;
 
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    signal?.throwIfAborted();
     try {
       return await fn();
     } catch (error) {
@@ -97,12 +101,32 @@ export async function withRetry<T>(
       }
 
       // Wait before retrying
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await abortableDelay(delay, signal);
     }
   }
 
   // This should never be reached, but TypeScript needs it
   throw lastError;
+}
+
+function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
+  signal.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(
+        signal.reason instanceof Error
+          ? signal.reason
+          : new DOMException('The operation was aborted', 'AbortError'),
+      );
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 /**

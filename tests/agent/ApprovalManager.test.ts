@@ -198,6 +198,34 @@ describe("ApprovalManager", () => {
       expect(result2).toBe(true);
       expect(mockRl.question).not.toHaveBeenCalled();
     });
+
+    it("scopes session approval to the same resource", async () => {
+      mockRl.question.mockImplementation((_, callback) => callback("2"));
+      await manager.request("write_file", "write_file", "one", { scope: "/one" });
+      mockRl.question.mockClear();
+
+      await expect(
+        manager.request("write_file", "write_file", "one again", { scope: "/one" }),
+      ).resolves.toBe(true);
+      expect(mockRl.question).not.toHaveBeenCalled();
+
+      mockRl.question.mockImplementation((_, callback) => callback("1"));
+      await manager.request("write_file", "write_file", "two", { scope: "/two" });
+      expect(mockRl.question).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not cache approval when session approval is disabled", async () => {
+      mockRl.question.mockImplementation((_, callback) => callback("2"));
+      await manager.request("delete_note", "delete_note", "delete", {
+        scope: "note-1",
+        allowSession: false,
+      });
+      await manager.request("delete_note", "delete_note", "delete again", {
+        scope: "note-1",
+        allowSession: false,
+      });
+      expect(mockRl.question).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe("console output", () => {
@@ -231,7 +259,7 @@ describe("ApprovalManager", () => {
 
       expect(console.log).toHaveBeenCalledWith("\nOptions:");
       expect(console.log).toHaveBeenCalledWith("  1. Approve once");
-      expect(console.log).toHaveBeenCalledWith("  2. Approve for this session");
+      expect(console.log).toHaveBeenCalledWith("  2. Approve for this resource this session");
       expect(console.log).toHaveBeenCalledWith("  3. Reject");
     });
   });

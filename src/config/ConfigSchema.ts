@@ -7,7 +7,7 @@ import { z } from "zod";
 const HackMDConfigSchema = z.object({
   apiBaseUrl: z.url().optional(),
   mcpBaseUrl: z.url().optional(),
-  apiToken: z.string().min(1, "API token is required"),
+  apiToken: z.string().min(1, "API token is required").optional(),
 });
 
 const LLMProviderSchema = z.object({

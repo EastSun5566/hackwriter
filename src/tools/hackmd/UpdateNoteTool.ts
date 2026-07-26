@@ -3,6 +3,7 @@ import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.ts";
 import type { ApprovalManager } from "../../agent/ApprovalManager.ts";
 import { handleHackMDError } from "./errorHandler.ts";
 import { withRetry, shouldRetryHttpError } from "../../utils/retry.ts";
+import { rethrowAbortError } from "../../utils/SafeError.ts";
 import {
   requestMutationApproval,
   validateNoteContent,
@@ -43,11 +44,12 @@ export class UpdateNoteTool extends Tool<UpdateNoteParams> {
   constructor(
     private hackmdClient: API,
     private approvalManager: ApprovalManager,
+    private readonly maxRetries = 3,
   ) {
     super();
   }
 
-  async call(params: UpdateNoteParams): Promise<ToolResult> {
+  async call(params: UpdateNoteParams, signal?: AbortSignal): Promise<ToolResult> {
     const noteIdError = validateNoteId(params.noteId);
     if (noteIdError) {
       return noteIdError;
@@ -72,6 +74,7 @@ export class UpdateNoteTool extends Tool<UpdateNoteParams> {
       teamAction: "update_team_note",
       personalDescription: `Update note ${params.noteId}`,
       teamDescription: `Update team note ${params.noteId} in team "${params.teamPath}"`,
+      resourceId: params.noteId,
     });
 
     if (approvalError) {
@@ -96,8 +99,9 @@ export class UpdateNoteTool extends Tool<UpdateNoteParams> {
           }
         },
         {
-          maxRetries: 3,
+          maxRetries: this.maxRetries,
           shouldRetry: shouldRetryHttpError,
+          signal,
         }
       );
 
@@ -111,6 +115,7 @@ export class UpdateNoteTool extends Tool<UpdateNoteParams> {
         "Updated",
       );
     } catch (error) {
+      rethrowAbortError(error);
       const appError = handleHackMDError(
         error,
         `Failed to update ${isTeamNote ? "team " : ""}note`,

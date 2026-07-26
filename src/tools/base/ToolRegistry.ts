@@ -7,7 +7,7 @@ export interface ToolLike {
   name: string;
   description: string;
   inputSchema: ToolSchema;
-  call(params: Record<string, unknown>): Promise<ToolResult>;
+  call(params: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResult>;
 }
 
 export class ToolRegistry {
@@ -49,4 +49,3 @@ export class ToolRegistry {
     this.tools.clear();
   }
 }
-

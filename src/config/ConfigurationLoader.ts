@@ -7,11 +7,6 @@ import type { CredentialStore } from "@earendil-works/pi-ai";
 import type { Configuration, LLMProvider } from "./Configuration.ts";
 import { safeValidateConfiguration } from "./ConfigSchema.ts";
 import { FileCredentialStore } from "./FileCredentialStore.ts";
-import { loadHackMDCLIConfig } from "./HackMDConfigLoader.ts";
-import {
-  describeHackMDTokenSource,
-  resolveHackMDServiceConfig,
-} from "./HackMDServiceResolution.ts";
 import {
   CONFIG_DIR,
   CONFIG_FILE,
@@ -24,6 +19,7 @@ import { Logger } from "../utils/Logger.ts";
 interface LoaderOptions {
   configPath?: string;
   credentials?: CredentialStore;
+  readOnly?: boolean;
 }
 
 interface LegacyConfiguration extends Partial<Omit<Configuration, "version">> {
@@ -58,7 +54,7 @@ export class ConfigurationLoader {
 
       try {
         userConfig = JSON.parse(await fs.readFile(configPath, "utf8"));
-        await fs.chmod(configPath, 0o600);
+        if (!options.readOnly) await fs.chmod(configPath, 0o600);
         needsRewrite = userConfig.version !== 2;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -76,7 +72,7 @@ export class ConfigurationLoader {
       for (const [providerId, provider] of Object.entries(
         userConfig.providers ?? {},
       )) {
-        if (provider.apiKey) {
+        if (provider.apiKey && !options.readOnly) {
           // Credential write must succeed before the legacy file is rewritten.
           await credentials.modify(providerId, (current) =>
             Promise.resolve(current ?? { type: "api_key", key: provider.apiKey }),
@@ -89,23 +85,12 @@ export class ConfigurationLoader {
       }
 
       const base = defaults();
-      const hackmdCLIConfig = await loadHackMDCLIConfig();
-      const { hackmd, tokenSource } = resolveHackMDServiceConfig(
-        userConfig.services?.hackmd,
-        hackmdCLIConfig,
-      );
-      const source = describeHackMDTokenSource(tokenSource);
-      if (source) Logger.debug("ConfigLoader", `Using HackMD token from ${source}`);
-
       const config: Configuration = {
         version: 2,
         defaultModel: userConfig.defaultModel ?? base.defaultModel,
         models: userConfig.models ?? base.models,
         providers,
-        services: {
-          ...userConfig.services,
-          hackmd: hackmd ?? userConfig.services?.hackmd,
-        },
+        services: userConfig.services ?? base.services,
         loopControl: userConfig.loopControl ?? base.loopControl,
       };
 
@@ -120,7 +105,7 @@ export class ConfigurationLoader {
         );
       }
 
-      if (needsRewrite) await this.save(config, { configPath });
+      if (needsRewrite && !options.readOnly) await this.save(config, { configPath });
       Logger.debug("ConfigLoader", "Configuration loaded and validated");
       return config;
     } catch (error) {

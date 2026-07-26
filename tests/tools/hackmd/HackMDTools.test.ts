@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NotePermissionRole } from "../../../src/tools/hackmd/CreateNoteTool.ts";
 
 import { ListNotesTool } from "../../../src/tools/hackmd/ListNotesTool.ts";
@@ -19,7 +19,7 @@ describe("ListNotesTool", () => {
 
   beforeEach(() => {
     mockClient = createMockHackMDClient();
-    tool = new ListNotesTool(mockClient as any);
+    tool = new ListNotesTool(mockClient as any, 0);
   });
 
   it("should list notes successfully", async () => {
@@ -85,7 +85,7 @@ describe("ReadNoteTool", () => {
 
   beforeEach(() => {
     mockClient = createMockHackMDClient();
-    tool = new ReadNoteTool(mockClient as any);
+    tool = new ReadNoteTool(mockClient as any, 0);
   });
 
   it("should read note successfully", async () => {
@@ -126,6 +126,26 @@ describe("ReadNoteTool", () => {
     expect(result.ok).toBe(false);
     expect(result.message).toContain("Network error");
   });
+
+  it("retries transient read failures within the configured budget", async () => {
+    vi.useFakeTimers();
+    try {
+      const transient = Object.assign(new Error("Service unavailable"), {
+        response: { status: 503 },
+      });
+      mockClient.getNote
+        .mockRejectedValueOnce(transient)
+        .mockResolvedValueOnce(createMockNote({ title: "Recovered" }));
+
+      const pending = new ReadNoteTool(mockClient as any, 1).call({ noteId: "note" });
+      await vi.runAllTimersAsync();
+
+      await expect(pending).resolves.toMatchObject({ ok: true, brief: "Recovered" });
+      expect(mockClient.getNote).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("SearchNotesTool", () => {
@@ -134,7 +154,7 @@ describe("SearchNotesTool", () => {
 
   beforeEach(() => {
     mockClient = createMockHackMDClient();
-    tool = new SearchNotesTool(mockClient as any);
+    tool = new SearchNotesTool(mockClient as any, 0);
   });
 
   it("should search notes by title", async () => {
@@ -259,6 +279,7 @@ describe("CreateNoteTool", () => {
       "create_note",
       "create_note", // Changed from 'create_hackmd_note' after tool merge
       expect.stringContaining("New Note"),
+      { scope: "personal:create", allowSession: undefined },
     );
     expect(mockClient.createNote).toHaveBeenCalledWith({
       title: "New Note",
@@ -317,6 +338,15 @@ describe("CreateNoteTool", () => {
     expect(result.message).toContain("Permission denied");
   });
 
+  it("does not retry ambiguous network failures", async () => {
+    mockClient.createNote.mockRejectedValue(new Error("Network timeout"));
+
+    const result = await tool.call({ title: "Maybe created", content: "content" });
+
+    expect(mockClient.createNote).toHaveBeenCalledTimes(1);
+    expect(result.brief).toBe("Outcome unknown");
+  });
+
   it("should create team note with teamPath parameter", async () => {
     const mockNote = createMockNote({
       id: "team-note",
@@ -335,6 +365,7 @@ describe("CreateNoteTool", () => {
       "create_note",
       "create_team_note",
       expect.stringContaining("engineering"),
+      { scope: "engineering:create", allowSession: undefined },
     );
     expect(mockClient.createTeamNote).toHaveBeenCalledWith("engineering", {
       title: "Team Note",
@@ -371,6 +402,7 @@ describe("UpdateNoteTool", () => {
       "update_note",
       "update_note",
       expect.stringContaining("note123"),
+      { scope: "personal:note123", allowSession: undefined },
     );
     expect(mockClient.updateNote).toHaveBeenCalledWith("note123", {
       content: "# Updated Content",
@@ -392,6 +424,7 @@ describe("UpdateNoteTool", () => {
       "update_note",
       "update_team_note",
       expect.stringContaining("my-team"),
+      { scope: "my-team:team-note-456", allowSession: undefined },
     );
     expect(mockClient.updateTeamNote).toHaveBeenCalledWith(
       "my-team",
@@ -453,6 +486,7 @@ describe("DeleteNoteTool", () => {
       "delete_note",
       "delete_note",
       expect.stringContaining("note-to-delete"),
+      { scope: "personal:note-to-delete", allowSession: false },
     );
     expect(mockClient.deleteNote).toHaveBeenCalledWith("note-to-delete");
     expect(result.ok).toBe(true);
@@ -471,6 +505,7 @@ describe("DeleteNoteTool", () => {
       "delete_note",
       "delete_team_note",
       expect.stringContaining("work-team"),
+      { scope: "work-team:team-note-789", allowSession: false },
     );
     expect(mockClient.deleteTeamNote).toHaveBeenCalledWith(
       "work-team",

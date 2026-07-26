@@ -32,5 +32,14 @@ jobs:
       - name: Run tests
         run: pnpm run test
 
+      - name: Run coverage gate
+        run: pnpm run test:coverage
+
       - name: Build
         run: pnpm run build
+
+      - name: Verify packed install
+        run: node scripts/package-smoke.mjs
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod

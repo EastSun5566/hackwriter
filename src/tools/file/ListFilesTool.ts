@@ -3,6 +3,7 @@ import { join, relative } from 'node:path';
 import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.ts';
 import { MAX_FILES_DISPLAY } from '../../config/constants.ts';
 import { PathValidator, SecurityError } from '../../utils/PathValidator.ts';
+import { rethrowAbortError } from '../../utils/SafeError.ts';
 
 interface ListFilesParams {
   directoryPath: string;
@@ -37,15 +38,17 @@ export class ListFilesTool extends Tool<ListFilesParams> {
     super();
   }
 
-  async call(params: ListFilesParams): Promise<ToolResult> {
+  async call(params: ListFilesParams, signal?: AbortSignal): Promise<ToolResult> {
     // Validate directory path using PathValidator
     try {
+      signal?.throwIfAborted();
       const validatedPath = await PathValidator.validateExisting(
         params.directoryPath,
         this.workDir,
       );
-      return await this.listValidated(validatedPath, params);
+      return await this.listValidated(validatedPath, params, signal);
     } catch (error) {
+      rethrowAbortError(error);
       if (error instanceof SecurityError) {
         return this.error(
           error.message,
@@ -65,12 +68,14 @@ export class ListFilesTool extends Tool<ListFilesParams> {
   private async listValidated(
     directoryPath: string,
     params: ListFilesParams,
+    signal?: AbortSignal,
   ): Promise<ToolResult> {
     try {
       const files = await this.listFiles(
         directoryPath,
         params.recursive ?? false,
-        params.pattern
+        params.pattern,
+        signal,
       );
 
       if (files.length === 0) {
@@ -105,6 +110,7 @@ export class ListFilesTool extends Tool<ListFilesParams> {
         `${files.length} items`,
       );
     } catch (error) {
+      rethrowAbortError(error);
       const errorMsg = `Failed to list files: ${this.formatError(error)}`;
       return this.error(
         errorMsg,
@@ -117,13 +123,15 @@ export class ListFilesTool extends Tool<ListFilesParams> {
   private async listFiles(
     dir: string,
     recursive: boolean,
-    pattern?: string
+    pattern?: string,
+    signal?: AbortSignal,
   ): Promise<{ relativePath: string; stats: Stats }[]> {
     const results: { relativePath: string; stats: Stats }[] = [];
     
     const entries = await fs.readdir(dir, { withFileTypes: true });
 
     for (const entry of entries) {
+      signal?.throwIfAborted();
       const fullPath = join(dir, entry.name);
       const stats = await fs.stat(fullPath);
       const relativePath = relative(dir, fullPath);
@@ -131,7 +139,7 @@ export class ListFilesTool extends Tool<ListFilesParams> {
       if (entry.isDirectory()) {
         if (recursive) {
           results.push({ relativePath, stats });
-          const subFiles = await this.listFiles(fullPath, true, pattern);
+          const subFiles = await this.listFiles(fullPath, true, pattern, signal);
           results.push(...subFiles.map(f => ({
             relativePath: join(relativePath, f.relativePath),
             stats: f.stats,

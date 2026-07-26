@@ -1,5 +1,7 @@
 import type { API } from '@hackmd/api';
 import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.ts';
+import { rethrowAbortError } from '../../utils/SafeError.ts';
+import { withReadRetry } from './readRetry.ts';
 
 interface GetHistoryParams {
   limit?: number;
@@ -27,13 +29,17 @@ export class GetHistoryTool extends Tool<GetHistoryParams> {
     },
   };
 
-  constructor(private hackmdClient: API) {
+  constructor(private hackmdClient: API, private readonly maxRetries = 3) {
     super();
   }
 
-  async call(params: GetHistoryParams): Promise<ToolResult> {
+  async call(params: GetHistoryParams, signal?: AbortSignal): Promise<ToolResult> {
     try {
-      const history = await this.hackmdClient.getHistory() as HistoryEntry[];
+      const history = await withReadRetry(
+        () => this.hackmdClient.getHistory() as Promise<HistoryEntry[]>,
+        this.maxRetries,
+        signal,
+      );
       const limit = params.limit ?? 20;
       const limitedHistory = history.slice(0, limit);
       
@@ -71,6 +77,7 @@ export class GetHistoryTool extends Tool<GetHistoryParams> {
         `${history.length} items`,
       );
     } catch (error) {
+      rethrowAbortError(error);
       const errorMsg = `Failed to get history: ${this.formatError(error)}`;
       return this.error(
         errorMsg,

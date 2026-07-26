@@ -141,7 +141,10 @@ describe("AgentExecutor", () => {
         expect.objectContaining({ type: "tool_call_started" }),
       );
       expect(messageBus.publish).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "tool_completed" }),
+        expect.objectContaining({
+          type: "tool_completed",
+          result: expect.objectContaining({ brief: "Done" }),
+        }),
       );
     });
 
@@ -166,6 +169,29 @@ describe("AgentExecutor", () => {
       expect(messageBus.publish).toHaveBeenCalledWith(
         expect.objectContaining({ type: "tool_failed" }),
       );
+    });
+  });
+
+  it("returns limit_reached after the configured number of turns", async () => {
+    const testTool = new TestTool("test_tool", async () => ({
+      ok: true,
+      output: "done",
+    }));
+    toolRegistry.register(testTool);
+    executor = new AgentExecutor(
+      mockAgent,
+      context,
+      faux.getModel(),
+      models,
+      { maxStepsPerRun: 1, maxRetriesPerStep: 0 },
+    );
+    faux.setResponses([
+      fauxAssistantMessage([fauxToolCall("test_tool", {})]),
+      fauxAssistantMessage(fauxText("second turn")),
+    ]);
+
+    await expect(executor.execute("run")).resolves.toMatchObject({
+      status: "limit_reached",
     });
   });
 
@@ -250,7 +276,7 @@ describe("AgentExecutor", () => {
         throw abortError;
       });
 
-      await expect(executor.execute("Stop now")).resolves.toBeUndefined();
+      await expect(executor.execute("Stop now")).resolves.toEqual({ status: "aborted" });
       expect(executor.isExecuting).toBe(false);
       expect(messageBus.publish).toHaveBeenCalledWith({
         type: "execution_interrupted",

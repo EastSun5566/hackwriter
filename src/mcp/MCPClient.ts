@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import { AsyncPackageLoader } from "../utils/AsyncPackageLoader.ts";
 import type { Disposable } from "../utils/ResourceManager.ts";
 import { RetryPolicy } from "../utils/RetryPolicy.ts";
+import { isNetworkError } from "../utils/retry.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -13,6 +14,8 @@ const __dirname = dirname(__filename);
 export interface MCPClientConfig {
   serverUrl: string;
   apiToken: string;
+  timeoutMs?: number;
+  maxRetries?: number;
 }
 
 export interface MCPToolDefinition {
@@ -38,17 +41,18 @@ export class MCPClient implements Disposable {
   constructor(config: MCPClientConfig) {
     this.config = config;
     this.retryPolicy = new RetryPolicy({
-      maxRetries: 3,
+      maxRetries: config.maxRetries ?? 3,
       initialDelayMs: 1000,
       maxDelayMs: 10000,
       backoffMultiplier: 2,
+      shouldRetry: isTransientMcpError,
     });
   }
 
   /**
    * Connect to MCP server with retry logic
    */
-  async connect(): Promise<void> {
+  async connect(signal?: AbortSignal): Promise<void> {
     if (this.connected) {
       Logger.debug("MCPClient", "Already connected");
       return;
@@ -56,7 +60,7 @@ export class MCPClient implements Disposable {
 
     await this.retryPolicy.execute(async () => {
       await this.connectInternal();
-    });
+    }, signal);
   }
 
   /**
@@ -89,9 +93,11 @@ export class MCPClient implements Disposable {
         headerNames: [...headers.keys()],
       });
       
+      const requestSignal = combineWithTimeout(init?.signal, this.config.timeoutMs ?? 5000);
       const response = await fetch(url, {
         ...init,
         headers,
+        signal: requestSignal,
       });
       
       // Check for session-related errors (HackMD MCP server race condition workaround)
@@ -107,12 +113,13 @@ export class MCPClient implements Disposable {
               Logger.debug("MCPClient", "Detected session race condition, adding delay and retrying...");
               
               // Wait for server to fully establish session (300ms to be safe)
-              await new Promise(resolve => setTimeout(resolve, 300));
+              await abortableDelay(300, requestSignal);
               
               // Retry the request
               const retryResponse = await fetch(url, {
                 ...init,
                 headers,
+                signal: requestSignal,
               });
               
               if (retryResponse.ok) {
@@ -218,12 +225,12 @@ export class MCPClient implements Disposable {
   /**
    * List available tools from MCP server
    */
-  async listTools(): Promise<MCPToolDefinition[]> {
+  async listTools(signal?: AbortSignal): Promise<MCPToolDefinition[]> {
     if (!this.client) {
       throw new Error("Not connected to MCP server");
     }
 
-    const response = await this.client.listTools();
+    const response = await this.client.listTools(undefined, { signal });
     return (response.tools || []).map((tool) => ({
       name: tool.name,
       description: tool.description,
@@ -234,17 +241,22 @@ export class MCPClient implements Disposable {
   /**
    * Call a tool on the MCP server
    */
-  async callTool(name: string, args: Record<string, unknown> = {}): Promise<MCPToolCallResult> {
+  async callTool(
+    name: string,
+    args: Record<string, unknown> = {},
+    signal?: AbortSignal,
+  ): Promise<MCPToolCallResult> {
     if (!this.client) {
       throw new Error("Not connected to MCP server");
     }
 
     Logger.debug("MCPClient", `Calling tool: ${name}`);
 
-    const response = await this.client.callTool({
-      name,
-      arguments: args,
-    });
+    const response = await this.client.callTool(
+      { name, arguments: args },
+      undefined,
+      { signal },
+    );
 
     return {
       content: response.content as { type: string; text?: string }[],
@@ -295,4 +307,36 @@ export class MCPClient implements Disposable {
     Logger.debug("MCPClient", "Disposing resources");
     await this.disconnect();
   }
+}
+
+function combineWithTimeout(
+  signal: AbortSignal | null | undefined,
+  timeoutMs: number,
+): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
+function isTransientMcpError(error: Error): boolean {
+  if (isNetworkError(error) || error.name === "TimeoutError") return true;
+  return /\b(408|429|5\d\d)\b/u.test(error.message);
+}
+
+function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
+  signal.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(
+        signal.reason instanceof Error
+          ? signal.reason
+          : new DOMException("The operation was aborted", "AbortError"),
+      );
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }

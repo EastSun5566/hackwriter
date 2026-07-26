@@ -1,11 +1,14 @@
 import type { API } from '@hackmd/api';
 import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.ts';
 import { promises as fs } from 'node:fs';
+import type { ApprovalManager } from '../../agent/ApprovalManager.ts';
+import { PathValidator, SecurityError } from '../../utils/PathValidator.ts';
+import { rethrowAbortError } from '../../utils/SafeError.ts';
+import { withReadRetry } from './readRetry.ts';
 
 interface ExportNoteParams {
   noteId: string;
   outputPath: string;
-  format?: 'md' | 'html' | 'pdf';
   [key: string]: unknown;
 }
 
@@ -23,70 +26,61 @@ export class ExportNoteTool extends Tool<ExportNoteParams> {
         type: 'string',
         description: 'The local file path to export to',
       },
-      format: {
-        type: 'string',
-        enum: ['md', 'html', 'pdf'],
-        description: 'Export format (default: md)',
-      },
     },
     required: ['noteId', 'outputPath'],
   };
 
-  constructor(private hackmdClient: API) {
+  constructor(
+    private hackmdClient: API,
+    private approvalManager: ApprovalManager,
+    private readonly workDir = process.cwd(),
+    private readonly maxRetries = 3,
+  ) {
     super();
   }
 
-  async call(params: ExportNoteParams): Promise<ToolResult> {
+  async call(params: ExportNoteParams, signal?: AbortSignal): Promise<ToolResult> {
     try {
-      const note = await this.hackmdClient.getNote(params.noteId);
-      const format = params.format ?? 'md';
-      
-      let content: string;
-      let filePath = params.outputPath;
-
-      if (format === 'md') {
-        content = note.content;
-        if (!filePath.endsWith('.md')) {
-          filePath = `${filePath}.md`;
-        }
-      } else if (format === 'html') {
-        // Basic markdown to HTML conversion (simplified)
-        content = `<!DOCTYPE html>
-<html>
-<head>
-  <title>${note.title}</title>
-  <meta charset="utf-8">
-</head>
-<body>
-  <h1>${note.title}</h1>
-  <pre>${note.content}</pre>
-</body>
-</html>`;
-        if (!filePath.endsWith('.html')) {
-          filePath = `${filePath}.html`;
-        }
-      } else {
-        return this.error(
-          'PDF export is not yet implemented',
-          'PDF export is not yet implemented',
-          'Not implemented',
-        );
+      signal?.throwIfAborted();
+      const displayPath = params.outputPath.endsWith('.md')
+        ? params.outputPath
+        : `${params.outputPath}.md`;
+      const filePath = await PathValidator.validateForWrite(displayPath, this.workDir);
+      const note = await withReadRetry(
+        () => this.hackmdClient.getNote(params.noteId),
+        this.maxRetries,
+        signal,
+      );
+      const approved = await this.approvalManager.request(
+        this.name,
+        'export_note',
+        `Export note "${note.title}" to "${displayPath}"`,
+        { scope: filePath },
+      );
+      if (!approved) {
+        return this.error('Operation rejected by user', 'Operation rejected by user', 'Rejected');
       }
 
-      await fs.writeFile(filePath, content, 'utf-8');
+      signal?.throwIfAborted();
+      await fs.writeFile(filePath, note.content, { encoding: 'utf8', mode: 0o600 });
+      await fs.chmod(filePath, 0o600);
 
       const output = 
         `✅ Note exported successfully!\n\n` +
         `**Title:** ${note.title}\n` +
-        `**Format:** ${format}\n` +
-        `**Output:** ${filePath}\n`;
+        `**Format:** Markdown\n` +
+        `**Output:** ${displayPath}\n`;
 
       return this.ok(
         output,
-        `Note exported to ${filePath}`,
+        `Note exported to ${displayPath}`,
         'Exported',
       );
     } catch (error) {
+      rethrowAbortError(error);
+      if (error instanceof SecurityError) {
+        return this.error(error.message, `Security violation: ${error.violation}`, 'Security error');
+      }
       const errorMsg = `Failed to export note: ${this.formatError(error)}`;
       return this.error(
         errorMsg,

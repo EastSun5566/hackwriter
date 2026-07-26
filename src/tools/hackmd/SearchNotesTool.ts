@@ -1,6 +1,8 @@
 import type { API } from '@hackmd/api';
 import type { Note } from '@hackmd/api/dist/type.js';
 import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.ts';
+import { rethrowAbortError } from '../../utils/SafeError.ts';
+import { withReadRetry } from './readRetry.ts';
 
 interface SearchNotesParams {
   query: string;
@@ -26,13 +28,17 @@ export class SearchNotesTool extends Tool<SearchNotesParams> {
     required: ['query'],
   };
 
-  constructor(private hackmdClient: API) {
+  constructor(private hackmdClient: API, private readonly maxRetries = 3) {
     super();
   }
 
-  async call(params: SearchNotesParams): Promise<ToolResult> {
+  async call(params: SearchNotesParams, signal?: AbortSignal): Promise<ToolResult> {
     try {
-      const allNotes = await this.hackmdClient.getNoteList();
+      const allNotes = await withReadRetry(
+        () => this.hackmdClient.getNoteList(),
+        this.maxRetries,
+        signal,
+      );
       const searchTerm = params.query.toLowerCase();
       
       const matchedNotes = allNotes.filter((note: Note) => 
@@ -66,6 +72,7 @@ export class SearchNotesTool extends Tool<SearchNotesParams> {
         `${matchedNotes.length} results`,
       );
     } catch (error) {
+      rethrowAbortError(error);
       const errorMsg = `Failed to search notes: ${this.formatError(error)}`;
       return this.error(
         errorMsg,

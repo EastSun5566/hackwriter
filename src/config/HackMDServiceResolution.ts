@@ -1,4 +1,4 @@
-import type { HackMDConfig } from './Configuration.ts';
+import type { HackMDConfig, ResolvedHackMDConfig } from './Configuration.ts';
 import {
   DEFAULT_HACKMD_API_URL,
   DEFAULT_HACKMD_MCP_URL,
@@ -101,19 +101,26 @@ export function resolveHackMDApiBaseUrl(
 
 export function resolveHackMDMcpBaseUrl(
   userHackMDConfig?: Partial<HackMDConfig>,
-): string {
-  return (
+  apiBaseUrl = resolveHackMDApiBaseUrl(userHackMDConfig),
+): string | undefined {
+  const explicit =
     normalizeValue(process.env[HACKWRITER_MCP_URL_ENV]) ??
-    normalizeValue(userHackMDConfig?.mcpBaseUrl) ??
-    DEFAULT_HACKMD_MCP_URL
-  );
+    normalizeValue(userHackMDConfig?.mcpBaseUrl);
+  if (explicit) return explicit;
+  return normalizeEndpoint(apiBaseUrl) === normalizeEndpoint(DEFAULT_HACKMD_API_URL)
+    ? DEFAULT_HACKMD_MCP_URL
+    : undefined;
+}
+
+function normalizeEndpoint(value: string): string {
+  return value.replace(/\/+$/u, '').toLowerCase();
 }
 
 export function resolveHackMDServiceConfig(
   userHackMDConfig?: Partial<HackMDConfig>,
   hackmdCLIConfig?: HackMDCLIConfigLike | null,
 ): {
-  hackmd?: HackMDConfig;
+  hackmd?: ResolvedHackMDConfig;
   tokenSource?: HackMDTokenSource;
 } {
   const { token, source } = resolveHackMDToken(userHackMDConfig, hackmdCLIConfig);
@@ -122,12 +129,13 @@ export function resolveHackMDServiceConfig(
     return { tokenSource: source };
   }
 
+  const apiBaseUrl = resolveHackMDApiBaseUrl(userHackMDConfig, hackmdCLIConfig);
   return {
     tokenSource: source,
     hackmd: {
       apiToken: token,
-      apiBaseUrl: resolveHackMDApiBaseUrl(userHackMDConfig, hackmdCLIConfig),
-      mcpBaseUrl: resolveHackMDMcpBaseUrl(userHackMDConfig),
+      apiBaseUrl,
+      mcpBaseUrl: resolveHackMDMcpBaseUrl(userHackMDConfig, apiBaseUrl),
     },
   };
 }

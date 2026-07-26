@@ -1,4 +1,5 @@
 import type { JSONSchema7 } from "json-schema";
+import { formatSafeError } from "../../utils/SafeError.ts";
 
 export interface ToolResult {
   ok: boolean;
@@ -17,7 +18,7 @@ export abstract class Tool<
   abstract readonly description: string;
   abstract readonly inputSchema: ToolSchema;
 
-  abstract call(params: P): Promise<ToolResult>;
+  abstract call(params: P, signal?: AbortSignal): Promise<ToolResult>;
 
   protected ok(output: string, message?: string, brief?: string): ToolResult {
     return { ok: true, output, message, brief };
@@ -28,9 +29,6 @@ export abstract class Tool<
   }
 
   protected formatError(error: unknown): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-    return String(error);
+    return formatSafeError(error);
   }
 }

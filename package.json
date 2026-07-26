@@ -22,9 +22,12 @@
     "knip": "knip",
     "knip:fix": "knip --fix",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run knip",
+    "smoke:package": "pnpm run build && node scripts/package-smoke.mjs",
+    "release:preflight": "pnpm run check && pnpm run test && pnpm run test:coverage && pnpm run smoke:package",
     "prepublishOnly": "pnpm run build",
-    "release": "pnpm exec commit-and-tag-version && git push --follow-tags"
+    "release": "pnpm run release:preflight && pnpm exec commit-and-tag-version && git push --follow-tags"
   },
   "keywords": [
     "hackmd",

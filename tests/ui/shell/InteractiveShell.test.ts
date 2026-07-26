@@ -29,7 +29,7 @@ describe("InteractiveShell", () => {
       },
       isExecuting: false,
       abort: vi.fn(),
-      execute: vi.fn().mockResolvedValue(undefined),
+      execute: vi.fn().mockResolvedValue({ status: "completed" }),
     } as Partial<AgentExecutor>;
 
     modelContext = {

@@ -2,6 +2,8 @@ import type { API } from "@hackmd/api";
 import type { Note } from "@hackmd/api/dist/type.js";
 import { Tool, type ToolResult, type ToolSchema } from "../base/Tool.ts";
 import { handleHackMDError } from "./errorHandler.ts";
+import { rethrowAbortError } from "../../utils/SafeError.ts";
+import { withReadRetry } from "./readRetry.ts";
 
 interface ListNotesParams {
   teamPath?: string; // Optional: if provided, lists team notes
@@ -27,17 +29,21 @@ export class ListNotesTool extends Tool<ListNotesParams> {
     },
   };
 
-  constructor(private hackmdClient: API) {
+  constructor(private hackmdClient: API, private readonly maxRetries = 3) {
     super();
   }
 
-  async call(params: ListNotesParams): Promise<ToolResult> {
+  async call(params: ListNotesParams, signal?: AbortSignal): Promise<ToolResult> {
     const isTeamNotes = Boolean(params.teamPath);
 
     try {
-      const notes = isTeamNotes
-        ? await this.hackmdClient.getTeamNotes(params.teamPath!)
-        : await this.hackmdClient.getNoteList();
+      const notes = await withReadRetry(
+        () => isTeamNotes
+          ? this.hackmdClient.getTeamNotes(params.teamPath!)
+          : this.hackmdClient.getNoteList(),
+        this.maxRetries,
+        signal,
+      );
 
       const limit = params.limit ?? 20;
       const limitedNotes = notes.slice(0, limit);
@@ -59,6 +65,7 @@ export class ListNotesTool extends Tool<ListNotesParams> {
         `${notes.length} ${noteType}`,
       );
     } catch (error) {
+      rethrowAbortError(error);
       const noteType = isTeamNotes ? "team notes" : "notes";
       const appError = handleHackMDError(error, `Failed to list ${noteType}`);
       return this.error(

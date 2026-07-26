@@ -83,7 +83,8 @@ export class BatchWriter {
       const content = recordsToFlush.map(r => r.data).join('');
       
       // Use appendFile for atomic writes
-      await fs.appendFile(this.filePath, content, 'utf-8');
+      await fs.appendFile(this.filePath, content, { encoding: 'utf8', mode: 0o600 });
+      await fs.chmod(this.filePath, 0o600);
       
       Logger.debug('BatchWriter', `Flushed ${recordsToFlush.length} records to ${this.filePath}`);
     } catch (error) {
@@ -95,7 +96,8 @@ export class BatchWriter {
       // Retry once
       try {
         const retryContent = recordsToFlush.map(r => r.data).join('');
-        await fs.appendFile(this.filePath, retryContent, 'utf-8');
+        await fs.appendFile(this.filePath, retryContent, { encoding: 'utf8', mode: 0o600 });
+        await fs.chmod(this.filePath, 0o600);
         
         // Remove from buffer on successful retry
         this.buffer.splice(0, recordsToFlush.length);

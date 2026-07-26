@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import ora, { type Ora } from 'ora';
 import { MessageBus } from '../../messaging/MessageBus.ts';
 import type { AgentMessage } from '../../messaging/MessageTypes.ts';
+import { formatSafeError } from '../../utils/SafeError.ts';
 
 export class OutputRenderer {
   private activeSpinner: Ora | null = null;
@@ -68,7 +69,7 @@ export class OutputRenderer {
       case 'agent_failed':
         this.stopSpinner();
         this.pendingToolCalls.clear();
-        console.log(chalk.red(`Error: ${message.error}`));
+        console.log(chalk.red(`Error: ${formatSafeError(message.error)}`));
         break;
 
       case 'tool_call_started':
@@ -108,7 +109,7 @@ export class OutputRenderer {
         const toolName =
           this.pendingToolCalls.get(message.toolCallId) ?? message.toolCallId;
         this.pendingToolCalls.delete(message.toolCallId);
-        const errorText = `${toolName}: ${message.error}`;
+        const errorText = `${toolName}: ${formatSafeError(message.error)}`;
 
         if (this.activeSpinner) {
           this.activeSpinner.fail(chalk.red(errorText));

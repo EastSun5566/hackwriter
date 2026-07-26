@@ -108,6 +108,7 @@ export class ConversationContext {
     // Create backup
     const backupFile = `${this.storageFile}.${Date.now()}.backup`;
     await fs.rename(this.storageFile, backupFile);
+    await fs.chmod(backupFile, 0o600);
 
     // Rebuild to checkpoint
     this.messages = [];

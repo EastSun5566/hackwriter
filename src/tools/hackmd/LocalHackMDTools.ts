@@ -16,20 +16,23 @@ import { UpdateNoteTool } from "./UpdateNoteTool.ts";
 export function createLocalHackMDTools(
   apiToken: string,
   approvalManager: ApprovalManager,
+  apiBaseUrl?: string,
+  workDir = process.cwd(),
+  maxRetries = 3,
 ): ToolLike[] {
-  const hackmdClient = new API(apiToken);
+  const hackmdClient = new API(apiToken, apiBaseUrl);
 
   return [
-    new ListNotesTool(hackmdClient),
-    new ReadNoteTool(hackmdClient),
+    new ListNotesTool(hackmdClient, maxRetries),
+    new ReadNoteTool(hackmdClient, maxRetries),
     new CreateNoteTool(hackmdClient, approvalManager),
-    new UpdateNoteTool(hackmdClient, approvalManager),
-    new DeleteNoteTool(hackmdClient, approvalManager),
-    new GetUserInfoTool(hackmdClient),
-    new ListTeamsTool(hackmdClient),
-    new GetHistoryTool(hackmdClient),
-    new SearchNotesTool(hackmdClient),
-    new ExportNoteTool(hackmdClient),
+    new UpdateNoteTool(hackmdClient, approvalManager, maxRetries),
+    new DeleteNoteTool(hackmdClient, approvalManager, maxRetries),
+    new GetUserInfoTool(hackmdClient, maxRetries),
+    new ListTeamsTool(hackmdClient, maxRetries),
+    new GetHistoryTool(hackmdClient, maxRetries),
+    new SearchNotesTool(hackmdClient, maxRetries),
+    new ExportNoteTool(hackmdClient, approvalManager, workDir, maxRetries),
   ];
 }
 

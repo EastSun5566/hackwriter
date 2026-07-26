@@ -2,6 +2,9 @@ import { Tool, type ToolResult, type ToolSchema } from '../base/Tool.ts';
 import { promises as fs } from 'node:fs';
 import { MAX_FILE_DISPLAY_SIZE } from '../../config/constants.ts';
 import { PathValidator, SecurityError } from '../../utils/PathValidator.ts';
+import type { ApprovalManager } from '../../agent/ApprovalManager.ts';
+import { isSensitiveFilePath } from '../../utils/SensitivePathPolicy.ts';
+import { rethrowAbortError } from '../../utils/SafeError.ts';
 
 interface ReadFileParams {
   filePath: string;
@@ -22,19 +25,42 @@ export class ReadFileTool extends Tool<ReadFileParams> {
     required: ['filePath'],
   };
 
-  constructor(private readonly workDir = process.cwd()) {
+  constructor(
+    private readonly workDir = process.cwd(),
+    private readonly approvalManager?: ApprovalManager,
+  ) {
     super();
   }
 
-  async call(params: ReadFileParams): Promise<ToolResult> {
+  async call(params: ReadFileParams, signal?: AbortSignal): Promise<ToolResult> {
     // Validate file path using PathValidator
     try {
+      signal?.throwIfAborted();
       const validatedPath = await PathValidator.validateExisting(
         params.filePath,
         this.workDir,
       );
-      return await this.read(validatedPath, params.filePath);
+      if (isSensitiveFilePath(validatedPath)) {
+        if (!this.approvalManager) {
+          return this.error(
+            'Sensitive file requires explicit approval',
+            'Sensitive file read blocked',
+            'Approval required',
+          );
+        }
+        const approved = await this.approvalManager.request(
+          this.name,
+          'read_sensitive_file',
+          `Read sensitive file "${params.filePath}" and send its contents to the model`,
+          { scope: validatedPath, allowSession: false },
+        );
+        if (!approved) {
+          return this.error('Operation rejected by user', 'Operation rejected by user', 'Rejected');
+        }
+      }
+      return await this.read(validatedPath, params.filePath, signal);
     } catch (error) {
+      rethrowAbortError(error);
       if (error instanceof SecurityError) {
         return this.error(
           error.message,
@@ -51,10 +77,17 @@ export class ReadFileTool extends Tool<ReadFileParams> {
 
   }
 
-  private async read(filePath: string, displayPath: string): Promise<ToolResult> {
+  private async read(filePath: string, displayPath: string, signal?: AbortSignal): Promise<ToolResult> {
     try {
-      const content = await fs.readFile(filePath, 'utf-8');
+      signal?.throwIfAborted();
       const stats = await fs.stat(filePath);
+      if (!stats.isFile()) {
+        return this.error('Path is not a regular file', 'Only regular files can be read', 'Invalid file');
+      }
+
+      const content = stats.size > MAX_FILE_DISPLAY_SIZE
+        ? await this.readPrefix(filePath, MAX_FILE_DISPLAY_SIZE)
+        : await fs.readFile(filePath, 'utf-8');
 
       // Warn if file is very large
       if (stats.size > MAX_FILE_DISPLAY_SIZE) {
@@ -82,12 +115,24 @@ export class ReadFileTool extends Tool<ReadFileParams> {
         'Read',
       );
     } catch (error) {
+      rethrowAbortError(error);
       const errorMsg = `Failed to read file: ${this.formatError(error)}`;
       return this.error(
         errorMsg,
         errorMsg,
         'Read failed',
       );
+    }
+  }
+
+  private async readPrefix(filePath: string, maxBytes: number): Promise<string> {
+    const handle = await fs.open(filePath, 'r');
+    try {
+      const buffer = Buffer.allocUnsafe(maxBytes);
+      const { bytesRead } = await handle.read(buffer, 0, maxBytes, 0);
+      return buffer.subarray(0, bytesRead).toString('utf8');
+    } finally {
+      await handle.close();
     }
   }
 }

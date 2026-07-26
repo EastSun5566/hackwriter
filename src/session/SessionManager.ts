@@ -12,11 +12,9 @@ export interface Session {
 }
 
 export class SessionManager {
-  private static sessionsDir = path.join(
-    os.homedir(),
-    CONFIG_DIR,
-    SESSIONS_DIR
-  );
+  private static sessionsDir(): string {
+    return path.join(os.homedir(), CONFIG_DIR, SESSIONS_DIR);
+  }
 
   static async create(workDir: string): Promise<Session> {
     const sessionId = crypto.randomUUID();
@@ -25,8 +23,12 @@ export class SessionManager {
       .update(workDir)
       .digest('hex');
     
-    const sessionDir = path.join(this.sessionsDir, workDirHash);
-    await fs.mkdir(sessionDir, { recursive: true });
+    const sessionsDir = this.sessionsDir();
+    const sessionDir = path.join(sessionsDir, workDirHash);
+    await fs.mkdir(sessionsDir, { recursive: true, mode: 0o700 });
+    await fs.chmod(sessionsDir, 0o700);
+    await fs.mkdir(sessionDir, { recursive: true, mode: 0o700 });
+    await fs.chmod(sessionDir, 0o700);
 
     const historyFile = path.join(sessionDir, `${sessionId}.jsonl`);
 
@@ -45,10 +47,13 @@ export class SessionManager {
       .update(workDir)
       .digest('hex');
     
-    const sessionDir = path.join(this.sessionsDir, workDirHash);
+    const sessionsDir = this.sessionsDir();
+    const sessionDir = path.join(sessionsDir, workDirHash);
     
     try {
       const files = await fs.readdir(sessionDir);
+      await fs.chmod(sessionsDir, 0o700);
+      await fs.chmod(sessionDir, 0o700);
       const sessionFiles = files.filter((f: string) => f.endsWith('.jsonl'));
       
       if (sessionFiles.length === 0) {
@@ -69,10 +74,12 @@ export class SessionManager {
 
       Logger.debug('SessionManager', `Continuing session: ${sessionId.slice(0, 8)}...`);
 
+      const historyFile = path.join(sessionDir, latestFile);
+      await fs.chmod(historyFile, 0o600);
       return {
         id: sessionId,
         workDir,
-        historyFile: path.join(sessionDir, latestFile),
+        historyFile,
       };
     } catch {
       return null;

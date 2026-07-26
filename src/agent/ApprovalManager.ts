@@ -13,6 +13,8 @@ export class CLIApprovalProvider implements ApprovalProvider {
       toolName: string;
       action: string;
       description: string;
+      scope?: string;
+      allowSession?: boolean;
     },
     mainRl?: readline.Interface,
   ): Promise<ApprovalResponse> {
@@ -21,7 +23,11 @@ export class CLIApprovalProvider implements ApprovalProvider {
     console.log(`Action: ${req.description}`);
     console.log("\nOptions:");
     console.log("  1. Approve once");
-    console.log("  2. Approve for this session");
+    console.log(
+      req.allowSession === false
+        ? "  2. Approve once (session approval unavailable)"
+        : "  2. Approve for this resource this session",
+    );
     console.log("  3. Reject");
 
     let answer: string;
@@ -66,7 +72,13 @@ export class CLIApprovalProvider implements ApprovalProvider {
  */
 export class YoloApprovalProvider implements ApprovalProvider {
   request(
-    _req: { toolName: string; action: string; description: string },
+    _req: {
+      toolName: string;
+      action: string;
+      description: string;
+      scope?: string;
+      allowSession?: boolean;
+    },
     _mainRl?: readline.Interface,
   ): Promise<ApprovalResponse> {
     return Promise.resolve("approve");
@@ -78,7 +90,7 @@ export class YoloApprovalProvider implements ApprovalProvider {
  * Handles session-based auto-approval logic
  */
 export class ApprovalManager {
-  private autoApproveActions = new Set<string>();
+  private autoApproveScopes = new Set<string>();
   private provider: ApprovalProvider;
   private mainRl?: readline.Interface;
 
@@ -97,9 +109,11 @@ export class ApprovalManager {
     toolName: string,
     action: string,
     description: string,
+    options: { scope?: string; allowSession?: boolean } = {},
   ): Promise<boolean> {
+    const cacheKey = `${action}\u0000${options.scope ?? "*"}`;
     // Check if already auto-approved for this session
-    if (this.autoApproveActions.has(action)) {
+    if (options.allowSession !== false && this.autoApproveScopes.has(cacheKey)) {
       return true;
     }
 
@@ -114,6 +128,8 @@ export class ApprovalManager {
       toolName,
       action,
       description,
+      scope: options.scope,
+      allowSession: options.allowSession,
     }, this.mainRl);
 
     const approved = (() => {
@@ -121,7 +137,9 @@ export class ApprovalManager {
         case "approve":
           return true;
         case "approve_for_session":
-          this.autoApproveActions.add(action);
+          if (options.allowSession !== false) {
+            this.autoApproveScopes.add(cacheKey);
+          }
           return true;
         case "reject":
         default:

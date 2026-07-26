@@ -1,6 +1,10 @@
 export interface HackMDConfig {
   apiBaseUrl?: string;
   mcpBaseUrl?: string;
+  apiToken?: string;
+}
+
+export interface ResolvedHackMDConfig extends Omit<HackMDConfig, "apiToken"> {
   apiToken: string;
 }
 
