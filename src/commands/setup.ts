@@ -14,9 +14,7 @@ import { ModelService } from "../config/ModelService.ts";
 import { loadHackMDCLIConfig } from "../config/HackMDConfigLoader.ts";
 import {
   describeHackMDTokenSource,
-  resolveHackMDApiBaseUrl,
-  resolveHackMDMcpBaseUrl,
-  resolveHackMDToken,
+  resolveHackMDServiceConfig,
 } from "../config/HackMDServiceResolution.ts";
 import {
   FileHackMDOAuthStore,
@@ -24,6 +22,7 @@ import {
   createInteractiveHackMDOAuthSession,
   type HackMDOAuthStore,
 } from "../mcp/index.ts";
+import { readHackMDOAuthCredential } from "../mcp/HackMDAuthSelection.ts";
 
 function printSetupHeader(): void {
   console.log(chalk.bold.cyan("\n🔧 HackWriter Setup\n"));
@@ -162,16 +161,9 @@ export async function selectDefaultModel(
 }
 
 async function connectHackMDWithOAuth(
-  config: Configuration,
+  serverUrl: string,
   store: HackMDOAuthStore,
 ): Promise<boolean> {
-  const apiBaseUrl = resolveHackMDApiBaseUrl(config.services.hackmd);
-  const serverUrl = resolveHackMDMcpBaseUrl(config.services.hackmd, apiBaseUrl);
-  if (!serverUrl) {
-    console.log(chalk.yellow("OAuth requires a configured HackMD MCP endpoint."));
-    return false;
-  }
-
   const session = await createInteractiveHackMDOAuthSession(serverUrl, store, {
     onRedirect: (authorizationUrl) => {
       console.log(chalk.cyan("\nOpen this URL to connect HackMD:"));
@@ -203,15 +195,14 @@ async function ensureHackMDAuth(
   store: HackMDOAuthStore,
 ): Promise<boolean> {
   const cliConfig = await loadHackMDCLIConfig();
-  const resolved = resolveHackMDToken(config.services.hackmd, cliConfig);
-  if (resolved.token) {
-    const source = describeHackMDTokenSource(resolved.source);
+  const resolved = resolveHackMDServiceConfig(config.services.hackmd, cliConfig);
+  if (resolved.hackmd.apiToken) {
+    const source = describeHackMDTokenSource(resolved.tokenSource);
     console.log(chalk.green(`✓ HackMD token found${source ? ` in ${source}` : ""}`));
     return true;
   }
 
-  const apiBaseUrl = resolveHackMDApiBaseUrl(config.services.hackmd, cliConfig);
-  const mcpBaseUrl = resolveHackMDMcpBaseUrl(config.services.hackmd, apiBaseUrl);
+  const mcpBaseUrl = resolved.hackmd.mcpBaseUrl;
   if (mcpBaseUrl && (await store.read(mcpBaseUrl))?.tokens) {
     console.log(chalk.green("✓ HackMD OAuth connection found"));
     return true;
@@ -228,7 +219,9 @@ async function ensureHackMDAuth(
       { name: "Cancel", value: "cancel" as const },
     ],
   });
-  if (method === "oauth") return connectHackMDWithOAuth(config, store);
+  if (method === "oauth") {
+    return mcpBaseUrl ? connectHackMDWithOAuth(mcpBaseUrl, store) : false;
+  }
   if (method === "cancel") return false;
 
   const apiToken = await password({ message: "Enter HackMD API token", mask: "*" });
@@ -289,11 +282,19 @@ export async function runInteractiveSetup(
   const service = existingService ?? new ModelService(config);
   const oauthStore = options.oauthStore ?? new FileHackMDOAuthStore();
   await service.initialize();
-  const apiBaseUrl = resolveHackMDApiBaseUrl(config.services.hackmd);
-  const mcpBaseUrl = resolveHackMDMcpBaseUrl(config.services.hackmd, apiBaseUrl);
-  const hasOAuth = Boolean(
-    mcpBaseUrl && (await oauthStore.read(mcpBaseUrl))?.tokens,
+  const resolved = resolveHackMDServiceConfig(
+    config.services.hackmd,
+    await loadHackMDCLIConfig(),
   );
+  const mcpBaseUrl = resolved.hackmd.mcpBaseUrl;
+  const oauthCredential = mcpBaseUrl
+    ? await readHackMDOAuthCredential({
+      store: oauthStore,
+      serverUrl: mcpBaseUrl,
+      hasApiToken: Boolean(resolved.hackmd.apiToken),
+    })
+    : undefined;
+  const hasOAuth = Boolean(oauthCredential?.tokens);
   const action = await select({
     message: "What would you like to configure?",
     choices: [
@@ -330,7 +331,7 @@ export async function runInteractiveSetup(
   } else if (action === "model") {
     return (await selectDefaultModel(config, service)) !== undefined;
   } else if (action === "hackmd-oauth") {
-    return connectHackMDWithOAuth(config, oauthStore);
+    return mcpBaseUrl ? connectHackMDWithOAuth(mcpBaseUrl, oauthStore) : false;
   } else if (action === "hackmd-oauth-disconnect") {
     if (!mcpBaseUrl) return false;
     await options.onHackMDOAuthDisconnect?.();

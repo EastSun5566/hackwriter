@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { chooseHackMDMcpAuthSource } from "../../src/mcp/HackMDAuthSelection.ts";
+import {
+  chooseHackMDMcpAuthSource,
+  readHackMDOAuthCredential,
+} from "../../src/mcp/HackMDAuthSelection.ts";
+import type { HackMDOAuthStore } from "../../src/mcp/HackMDOAuthStore.ts";
 
 describe("chooseHackMDMcpAuthSource", () => {
   it.each([
@@ -31,5 +35,29 @@ describe("chooseHackMDMcpAuthSource", () => {
     },
   ])("$name", ({ input, expected }) => {
     expect(chooseHackMDMcpAuthSource(input)).toBe(expected);
+  });
+});
+
+describe("readHackMDOAuthCredential", () => {
+  const unreadableStore: HackMDOAuthStore = {
+    read: async () => { throw new Error("invalid OAuth file"); },
+    update: async () => undefined,
+    delete: async () => undefined,
+  };
+
+  it("falls back to an API token when the optional OAuth store is unreadable", async () => {
+    await expect(readHackMDOAuthCredential({
+      store: unreadableStore,
+      serverUrl: "https://mcp.hackmd.io",
+      hasApiToken: true,
+    })).resolves.toBeUndefined();
+  });
+
+  it("keeps an unreadable OAuth store fatal for OAuth-only mode", async () => {
+    await expect(readHackMDOAuthCredential({
+      store: unreadableStore,
+      serverUrl: "https://mcp.hackmd.io",
+      hasApiToken: false,
+    })).rejects.toThrow("invalid OAuth file");
   });
 });

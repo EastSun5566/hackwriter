@@ -32,7 +32,10 @@ import {
   buildHackMDMcpFallback,
   classifyHackMDMcpTool,
 } from "../mcp/HackMDMcpToolPolicies.ts";
-import { chooseHackMDMcpAuthSource } from "../mcp/HackMDAuthSelection.ts";
+import {
+  chooseHackMDMcpAuthSource,
+  readHackMDOAuthCredential,
+} from "../mcp/HackMDAuthSelection.ts";
 
 export interface RuntimeBundle {
   config: Configuration;
@@ -93,7 +96,11 @@ export async function buildRuntime(options: BuildRuntimeOptions): Promise<Runtim
 
   if (resolved.hackmd.mcpBaseUrl) {
     const oauthStore = options.oauthStore ?? new FileHackMDOAuthStore();
-    const oauthCredential = await oauthStore.read(resolved.hackmd.mcpBaseUrl);
+    const oauthCredential = await readHackMDOAuthCredential({
+      store: oauthStore,
+      serverUrl: resolved.hackmd.mcpBaseUrl,
+      hasApiToken: Boolean(resolved.hackmd.apiToken),
+    });
     let oauthSession: InteractiveHackMDOAuthSession | undefined;
     let auth: MCPClientAuth | undefined;
     const authSource = chooseHackMDMcpAuthSource({

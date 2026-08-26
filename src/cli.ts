@@ -132,6 +132,7 @@ async function runAgent(options: {
       await loadHackMDCLIConfig(),
     );
     let hasHackMDOAuth = Boolean(
+      !resolvedHackMD.hackmd.apiToken &&
       resolvedHackMD.hackmd.mcpBaseUrl &&
       (await oauthStore.read(resolvedHackMD.hackmd.mcpBaseUrl))?.tokens,
     );
@@ -160,6 +161,7 @@ async function runAgent(options: {
         await loadHackMDCLIConfig(),
       );
       hasHackMDOAuth = Boolean(
+        !resolvedHackMD.hackmd.apiToken &&
         resolvedHackMD.hackmd.mcpBaseUrl &&
         (await oauthStore.read(resolvedHackMD.hackmd.mcpBaseUrl))?.tokens,
       );
