@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.5](https://github.com/EastSun5566/hackwriter/compare/v0.1.4...v0.1.5) (2026-08-26)
+
+### Features
+
+* add HackMD MCP OAuth ([3ac9bef](https://github.com/EastSun5566/hackwriter/commit/3ac9bef900cba9cc16c62d5aab3d44cd4e114e51))
+
+### Bug Fixes
+
+* harden HackMD OAuth fallback and setup ([2810191](https://github.com/EastSun5566/hackwriter/commit/2810191674c0b1a86a97e30c1e86b2f9296cebb3))
 ## [0.1.4](https://github.com/EastSun5566/hackwriter/compare/v0.1.3...v0.1.4) (2026-07-26)
 
 ### Features
