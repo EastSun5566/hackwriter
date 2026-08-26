@@ -6,6 +6,7 @@
 // Directory and file paths
 export const CONFIG_DIR = '.hackwriter';
 export const CONFIG_FILE = 'config.json';
+export const HACKMD_OAUTH_FILE = 'hackmd-oauth.json';
 export const SESSIONS_DIR = 'sessions';
 
 // File size limits

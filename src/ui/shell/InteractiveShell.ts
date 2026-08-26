@@ -36,6 +36,7 @@ export interface ModelContext {
     requestedModel?: string,
   ) => Promise<RuntimeBundle>;
   commitRuntime?: (runtime: RuntimeBundle) => Promise<void>;
+  disconnectMcp?: () => Promise<void>;
 }
 
 export class InteractiveShell implements Disposable {

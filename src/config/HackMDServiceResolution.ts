@@ -120,20 +120,15 @@ export function resolveHackMDServiceConfig(
   userHackMDConfig?: Partial<HackMDConfig>,
   hackmdCLIConfig?: HackMDCLIConfigLike | null,
 ): {
-  hackmd?: ResolvedHackMDConfig;
+  hackmd: ResolvedHackMDConfig;
   tokenSource?: HackMDTokenSource;
 } {
   const { token, source } = resolveHackMDToken(userHackMDConfig, hackmdCLIConfig);
-
-  if (!token) {
-    return { tokenSource: source };
-  }
-
   const apiBaseUrl = resolveHackMDApiBaseUrl(userHackMDConfig, hackmdCLIConfig);
   return {
     tokenSource: source,
     hackmd: {
-      apiToken: token,
+      ...(token ? { apiToken: token } : {}),
       apiBaseUrl,
       mcpBaseUrl: resolveHackMDMcpBaseUrl(userHackMDConfig, apiBaseUrl),
     },

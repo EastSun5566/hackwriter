@@ -217,9 +217,13 @@ export class CommandRegistry {
       let changed: boolean;
       try {
         if (context.modelService) {
-          changed = await runInteractiveSetup(context.config, context.modelService);
+          changed = await runInteractiveSetup(context.config, context.modelService, {
+            onHackMDOAuthDisconnect: context.disconnectMcp,
+          });
         } else {
-          changed = await runInteractiveSetup(context.config);
+          changed = await runInteractiveSetup(context.config, undefined, {
+            onHackMDOAuthDisconnect: context.disconnectMcp,
+          });
         }
         if (changed && context.reloadRuntime) {
           const runtime = await context.reloadRuntime(

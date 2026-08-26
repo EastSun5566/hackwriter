@@ -23,6 +23,7 @@ import { loadHackMDCLIConfig } from "./config/HackMDConfigLoader.ts";
 import { resolveHackMDServiceConfig } from "./config/HackMDServiceResolution.ts";
 import { buildRuntime, type RuntimeBundle } from "./runtime/RuntimeCoordinator.ts";
 import { doctorCommand } from "./commands/doctor.ts";
+import { FileHackMDOAuthStore } from "./mcp/HackMDOAuthStore.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -116,6 +117,7 @@ async function runAgent(options: {
   }
 
   try {
+    const oauthStore = new FileHackMDOAuthStore();
     let config = await ConfigurationLoader.load();
     let modelService = new ModelService(config);
     await modelService.initialize();
@@ -129,7 +131,13 @@ async function runAgent(options: {
       config.services.hackmd,
       await loadHackMDCLIConfig(),
     );
-    const needsSetup = !resolvedHackMD.hackmd || availableModels.length === 0;
+    let hasHackMDOAuth = Boolean(
+      resolvedHackMD.hackmd.mcpBaseUrl &&
+      (await oauthStore.read(resolvedHackMD.hackmd.mcpBaseUrl))?.tokens,
+    );
+    const needsSetup = (
+      !resolvedHackMD.hackmd.apiToken && !hasHackMDOAuth
+    ) || availableModels.length === 0;
 
     if (needsSetup) {
       console.log(
@@ -141,7 +149,7 @@ async function runAgent(options: {
           "Run 'hackwriter setup' in an interactive terminal first.",
         );
       }
-      await setupCommand(true);
+      await setupCommand(true, oauthStore);
 
       config = await ConfigurationLoader.load();
       modelService = new ModelService(config);
@@ -151,8 +159,15 @@ async function runAgent(options: {
         config.services.hackmd,
         await loadHackMDCLIConfig(),
       );
+      hasHackMDOAuth = Boolean(
+        resolvedHackMD.hackmd.mcpBaseUrl &&
+        (await oauthStore.read(resolvedHackMD.hackmd.mcpBaseUrl))?.tokens,
+      );
 
-      if (!resolvedHackMD.hackmd || availableModels.length === 0) {
+      if (
+        (!resolvedHackMD.hackmd.apiToken && !hasHackMDOAuth) ||
+        availableModels.length === 0
+      ) {
         console.log(chalk.gray("\nSetup cancelled or incomplete."));
         return;
       }
@@ -200,6 +215,8 @@ async function runAgent(options: {
       approvalManager,
       workDir,
       modelName: modelMatch.canonicalId,
+      allowOAuthLogin: !options.command && process.stdin.isTTY,
+      oauthStore,
     });
 
     shell = new InteractiveShell(runtime.executor, {
@@ -217,12 +234,18 @@ async function runAgent(options: {
           approvalManager,
           workDir,
           modelName: requestedModel,
+          allowOAuthLogin: true,
+          oauthStore,
         });
       },
       commitRuntime: async (next) => {
         const previous = runtime;
         runtime = next;
         await previous?.mcpClient?.dispose().catch(() => undefined);
+      },
+      disconnectMcp: async () => {
+        await runtime?.mcpClient?.dispose().catch(() => undefined);
+        if (runtime) runtime.mcpClient = undefined;
       },
     });
 

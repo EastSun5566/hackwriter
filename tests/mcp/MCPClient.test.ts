@@ -12,7 +12,7 @@ describe("MCPClient", () => {
     it("should create client with config", () => {
       const client = new MCPClient({
         serverUrl: "https://test.example.com/mcp",
-        apiToken: "test-token",
+        auth: { type: "bearer", token: "test-token" },
       });
 
       expect(client).toBeDefined();
@@ -22,11 +22,11 @@ describe("MCPClient", () => {
     it("should accept different server URLs", () => {
       const client1 = new MCPClient({
         serverUrl: "https://mcp.hackmd.io",
-        apiToken: "token1",
+        auth: { type: "bearer", token: "token1" },
       });
       const client2 = new MCPClient({
         serverUrl: "https://mcp.local.localhost",
-        apiToken: "token2",
+        auth: { type: "bearer", token: "token2" },
       });
 
       expect(client1).toBeDefined();
@@ -38,7 +38,7 @@ describe("MCPClient", () => {
     it("should throw on listTools when not connected", async () => {
       const client = new MCPClient({
         serverUrl: "https://test.example.com/mcp",
-        apiToken: "test-token",
+        auth: { type: "bearer", token: "test-token" },
       });
 
       await expect(client.listTools()).rejects.toThrow("Not connected to MCP server");
@@ -47,7 +47,7 @@ describe("MCPClient", () => {
     it("should throw on callTool when not connected", async () => {
       const client = new MCPClient({
         serverUrl: "https://test.example.com/mcp",
-        apiToken: "test-token",
+        auth: { type: "bearer", token: "test-token" },
       });
 
       await expect(client.callTool("test", {})).rejects.toThrow("Not connected to MCP server");
@@ -56,7 +56,7 @@ describe("MCPClient", () => {
     it("should throw on listResources when not connected", async () => {
       const client = new MCPClient({
         serverUrl: "https://test.example.com/mcp",
-        apiToken: "test-token",
+        auth: { type: "bearer", token: "test-token" },
       });
 
       await expect(client.listResources()).rejects.toThrow("Not connected to MCP server");
@@ -65,7 +65,7 @@ describe("MCPClient", () => {
     it("should throw on readResource when not connected", async () => {
       const client = new MCPClient({
         serverUrl: "https://test.example.com/mcp",
-        apiToken: "test-token",
+        auth: { type: "bearer", token: "test-token" },
       });
 
       await expect(client.readResource("hackmd://notes/123")).rejects.toThrow("Not connected to MCP server");
@@ -76,7 +76,7 @@ describe("MCPClient", () => {
     it("should handle disconnect when not connected", async () => {
       const client = new MCPClient({
         serverUrl: "https://test.example.com/mcp",
-        apiToken: "test-token",
+        auth: { type: "bearer", token: "test-token" },
       });
 
       // Should not throw

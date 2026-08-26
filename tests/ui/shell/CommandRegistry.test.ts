@@ -231,7 +231,11 @@ describe("CommandRegistry", () => {
       await registry.execute("setup");
 
       expect(mockShell.suspendReadline).toHaveBeenCalledTimes(1);
-      expect(runInteractiveSetup).toHaveBeenCalledWith(mockConfig, mockModelService);
+      expect(runInteractiveSetup).toHaveBeenCalledWith(
+        mockConfig,
+        mockModelService,
+        { onHackMDOAuthDisconnect: undefined },
+      );
       expect(mockShell.recreateReadline).toHaveBeenCalledTimes(1);
       expect(mockPrompt).toHaveBeenCalledTimes(1);
     });
@@ -239,7 +243,11 @@ describe("CommandRegistry", () => {
     it("should work with /config alias", async () => {
       await registry.execute("config");
 
-      expect(runInteractiveSetup).toHaveBeenCalledWith(mockConfig, mockModelService);
+      expect(runInteractiveSetup).toHaveBeenCalledWith(
+        mockConfig,
+        mockModelService,
+        { onHackMDOAuthDisconnect: undefined },
+      );
     });
 
     it("reloads and applies runtime after setup changes", async () => {
@@ -255,6 +263,23 @@ describe("CommandRegistry", () => {
       expect(modelContext.reloadRuntime).toHaveBeenCalledWith(mockConfig, mockConfig.defaultModel);
       expect(mockShell.applyRuntime).toHaveBeenCalledWith(runtime);
       expect(modelContext.commitRuntime).toHaveBeenCalledWith(runtime);
+    });
+
+    it("lets HackMD OAuth disconnect close the active MCP connection", async () => {
+      const modelContext = (mockShell.getModelContext as ReturnType<typeof vi.fn>)();
+      modelContext.disconnectMcp = vi.fn().mockResolvedValue(undefined);
+      (mockShell.getModelContext as ReturnType<typeof vi.fn>).mockReturnValue(modelContext);
+      vi.mocked(runInteractiveSetup).mockImplementationOnce(
+        async (_config, _service, options) => {
+          await options?.onHackMDOAuthDisconnect?.();
+          return false;
+        },
+      );
+
+      await registry.execute("setup");
+
+      expect(modelContext.disconnectMcp).toHaveBeenCalledTimes(1);
+      expect(modelContext.reloadRuntime).toBeUndefined();
     });
 
     it("rolls back config and credentials when runtime reload fails", async () => {
