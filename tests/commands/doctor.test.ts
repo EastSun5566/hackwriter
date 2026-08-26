@@ -74,4 +74,36 @@ describe("hackwriter doctor", () => {
       vi.unstubAllEnvs();
     }
   });
+
+  it("recognizes stored OAuth without requiring or rewriting an API token", async () => {
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), "hackwriter-doctor-"));
+    const configDir = path.join(home, ".hackwriter");
+    const oauthPath = path.join(configDir, "hackmd-oauth.json");
+    await fs.mkdir(configDir, { recursive: true, mode: 0o700 });
+    await fs.writeFile(oauthPath, JSON.stringify({
+      version: 1,
+      servers: {
+        "https://mcp.hackmd.io": {
+          clientInformation: { client_id: "doctor-client" },
+          tokens: { access_token: "doctor-oauth-secret", token_type: "Bearer" },
+        },
+      },
+    }), { mode: 0o644 });
+    vi.stubEnv("HACKMD_API_TOKEN", "");
+    vi.stubEnv("HMD_API_ACCESS_TOKEN", "");
+    try {
+      const report = await inspectDoctor("test", { homeDir: home, network: false });
+      expect(report.checks).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: "files.hackmd_oauth", status: "fail" }),
+        expect.objectContaining({ id: "hackmd.oauth", status: "pass" }),
+        expect.objectContaining({ id: "hackmd.credential", status: "pass" }),
+        expect.objectContaining({ id: "hackmd.api", status: "skip" }),
+      ]));
+      expect(JSON.stringify(report)).not.toContain("doctor-oauth-secret");
+      expect((await fs.stat(oauthPath)).mode & 0o777).toBe(0o644);
+    } finally {
+      await fs.rm(home, { recursive: true, force: true });
+      vi.unstubAllEnvs();
+    }
+  });
 });

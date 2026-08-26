@@ -4,8 +4,10 @@ export interface HackMDConfig {
   apiToken?: string;
 }
 
-export interface ResolvedHackMDConfig extends Omit<HackMDConfig, "apiToken"> {
-  apiToken: string;
+export interface ResolvedHackMDConfig {
+  apiBaseUrl: string;
+  mcpBaseUrl?: string;
+  apiToken?: string;
 }
 
 export interface LLMProvider {

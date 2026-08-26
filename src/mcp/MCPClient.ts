@@ -1,5 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import {
+  UnauthorizedError,
+  type OAuthClientProvider,
+} from "@modelcontextprotocol/sdk/client/auth.js";
 import { Logger } from "../utils/Logger.ts";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -11,9 +15,17 @@ import { isNetworkError } from "../utils/retry.ts";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+export type MCPClientAuth =
+  | { type: "bearer"; token: string }
+  | {
+    type: "oauth";
+    provider: OAuthClientProvider;
+    completeAuthorization?: () => Promise<string>;
+  };
+
 export interface MCPClientConfig {
   serverUrl: string;
-  apiToken: string;
+  auth: MCPClientAuth;
   timeoutMs?: number;
   maxRetries?: number;
 }
@@ -58,9 +70,32 @@ export class MCPClient implements Disposable {
       return;
     }
 
-    await this.retryPolicy.execute(async () => {
-      await this.connectInternal();
-    }, signal);
+    try {
+      await this.connectWithRetry(signal);
+    } catch (error) {
+      const oauth = this.config.auth.type === "oauth" ? this.config.auth : undefined;
+      if (!(error instanceof UnauthorizedError) || !oauth?.completeAuthorization) {
+        throw error;
+      }
+
+      try {
+        const code = await oauth.completeAuthorization();
+        if (!this.transport) throw new Error("OAuth transport is unavailable");
+        await this.transport.finishAuth(code);
+      } finally {
+        await this.resetConnection();
+      }
+      try {
+        await this.connectWithRetry(signal);
+      } catch (reconnectError) {
+        await this.resetConnection();
+        throw reconnectError;
+      }
+    }
+  }
+
+  private connectWithRetry(signal?: AbortSignal): Promise<void> {
+    return this.retryPolicy.execute(() => this.connectInternal(), signal);
   }
 
   /**
@@ -77,14 +112,17 @@ export class MCPClient implements Disposable {
     const packageJson = await AsyncPackageLoader.load(packagePath);
     this.packageVersion = packageJson.version;
 
-    // Create a custom fetch function that ensures Authorization header is included in all requests
+    const bearerToken = this.config.auth.type === "bearer"
+      ? this.config.auth.token
+      : undefined;
+
+    // Create a custom fetch function that preserves SDK OAuth headers and adds static bearer auth when configured.
     // Also handles server-side race conditions with session management
     const customFetch = async (url: string | URL, init?: RequestInit): Promise<Response> => {
       const headers = new Headers(init?.headers);
       
-      // Always include the Authorization header if not already present
-      if (!headers.has('Authorization')) {
-        headers.set('Authorization', `Bearer ${this.config.apiToken}`);
+      if (bearerToken && !headers.has('Authorization')) {
+        headers.set('Authorization', `Bearer ${bearerToken}`);
       }
       
       Logger.debug("MCPClient", "Fetching MCP request", {
@@ -148,11 +186,14 @@ export class MCPClient implements Disposable {
       new URL(this.config.serverUrl),
       {
         fetch: customFetch,
-        requestInit: {
+        authProvider: this.config.auth.type === "oauth"
+          ? this.config.auth.provider
+          : undefined,
+        requestInit: bearerToken ? {
           headers: {
-            Authorization: `Bearer ${this.config.apiToken}`,
+            Authorization: `Bearer ${bearerToken}`,
           },
-        },
+        } : undefined,
       }
     );
 
@@ -171,23 +212,15 @@ export class MCPClient implements Disposable {
       this.connected = true;
       Logger.info("MCPClient", "Connected to MCP server");
     } catch (error) {
+      if (
+        error instanceof UnauthorizedError &&
+        this.config.auth.type === "oauth" &&
+        this.config.auth.completeAuthorization
+      ) {
+        throw error;
+      }
       // Clean up partial state on failure
-      if (this.client) {
-        try {
-          await this.client.close();
-        } catch {
-          // Ignore cleanup errors
-        }
-        this.client = null;
-      }
-      if (this.transport) {
-        try {
-          await this.transport.close();
-        } catch {
-          // Ignore cleanup errors
-        }
-        this.transport = null;
-      }
+      await this.resetConnection();
       throw error;
     }
   }
@@ -196,18 +229,10 @@ export class MCPClient implements Disposable {
    * Disconnect from MCP server
    */
   async disconnect(): Promise<void> {
-    if (!this.connected) return;
+    if (!this.connected && !this.client && !this.transport) return;
 
     try {
-      if (this.client) {
-        await this.client.close();
-        this.client = null;
-      }
-      if (this.transport) {
-        await this.transport.close();
-        this.transport = null;
-      }
-      this.connected = false;
+      await this.resetConnection();
       Logger.debug("MCPClient", "Disconnected from MCP server");
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -306,6 +331,28 @@ export class MCPClient implements Disposable {
   async dispose(): Promise<void> {
     Logger.debug("MCPClient", "Disposing resources");
     await this.disconnect();
+  }
+
+  private async resetConnection(): Promise<void> {
+    const client = this.client;
+    const transport = this.transport;
+    this.client = null;
+    this.transport = null;
+    this.connected = false;
+    if (client) {
+      try {
+        await client.close();
+      } catch {
+        // Ignore cleanup errors.
+      }
+    }
+    if (transport) {
+      try {
+        await transport.close();
+      } catch {
+        // Ignore cleanup errors.
+      }
+    }
   }
 }
 

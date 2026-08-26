@@ -49,6 +49,21 @@ describe("local file safety", () => {
     expect(provider.request).not.toHaveBeenCalled();
   });
 
+  it("treats HackMD OAuth storage as a sensitive credential file", async () => {
+    const workDir = await tempDir();
+    await fs.writeFile(path.join(workDir, "hackmd-oauth.json"), "oauth-secret");
+    const provider = { request: vi.fn().mockResolvedValue("approve") };
+    const tool = new ReadFileTool(workDir, new ApprovalManager(provider));
+
+    await expect(tool.call({ filePath: "hackmd-oauth.json" })).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(provider.request).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "read_sensitive_file", allowSession: false }),
+      undefined,
+    );
+  });
+
   it("exports Markdown only inside the working directory after approval", async () => {
     const workDir = await tempDir();
     const client = {

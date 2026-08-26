@@ -12,6 +12,7 @@ const CREDENTIAL_FILE_NAMES = new Set([
   ".npmrc",
   ".pypirc",
   "auth.json",
+  "hackmd-oauth.json",
   "credentials",
   "credentials.json",
 ]);

@@ -14,8 +14,15 @@ import { ModelService } from "../config/ModelService.ts";
 import { loadHackMDCLIConfig } from "../config/HackMDConfigLoader.ts";
 import {
   describeHackMDTokenSource,
-  resolveHackMDToken,
+  resolveHackMDServiceConfig,
 } from "../config/HackMDServiceResolution.ts";
+import {
+  FileHackMDOAuthStore,
+  MCPClient,
+  createInteractiveHackMDOAuthSession,
+  type HackMDOAuthStore,
+} from "../mcp/index.ts";
+import { readHackMDOAuthCredential } from "../mcp/HackMDAuthSelection.ts";
 
 function printSetupHeader(): void {
   console.log(chalk.bold.cyan("\n🔧 HackWriter Setup\n"));
@@ -153,15 +160,69 @@ export async function selectDefaultModel(
   return canonicalId;
 }
 
-async function ensureHackMDToken(config: Configuration): Promise<boolean> {
-  if (config.services.hackmd?.apiToken) return true;
+async function connectHackMDWithOAuth(
+  serverUrl: string,
+  store: HackMDOAuthStore,
+): Promise<boolean> {
+  const session = await createInteractiveHackMDOAuthSession(serverUrl, store, {
+    onRedirect: (authorizationUrl) => {
+      console.log(chalk.cyan("\nOpen this URL to connect HackMD:"));
+      console.log(authorizationUrl.toString());
+    },
+  });
+  const client = new MCPClient({
+    serverUrl,
+    auth: {
+      type: "oauth",
+      provider: session.provider,
+      completeAuthorization: () => session.completeAuthorization(),
+    },
+    maxRetries: 0,
+  });
+  try {
+    await client.connect();
+    await client.listTools();
+    console.log(chalk.green("✓ HackMD connected with OAuth"));
+    return true;
+  } finally {
+    await client.dispose().catch(() => undefined);
+    await Promise.resolve(session.dispose()).catch(() => undefined);
+  }
+}
+
+async function ensureHackMDAuth(
+  config: Configuration,
+  store: HackMDOAuthStore,
+): Promise<boolean> {
   const cliConfig = await loadHackMDCLIConfig();
-  const resolved = resolveHackMDToken(undefined, cliConfig);
-  if (resolved.token) {
-    const source = describeHackMDTokenSource(resolved.source);
+  const resolved = resolveHackMDServiceConfig(config.services.hackmd, cliConfig);
+  if (resolved.hackmd.apiToken) {
+    const source = describeHackMDTokenSource(resolved.tokenSource);
     console.log(chalk.green(`✓ HackMD token found${source ? ` in ${source}` : ""}`));
     return true;
   }
+
+  const mcpBaseUrl = resolved.hackmd.mcpBaseUrl;
+  if (mcpBaseUrl && (await store.read(mcpBaseUrl))?.tokens) {
+    console.log(chalk.green("✓ HackMD OAuth connection found"));
+    return true;
+  }
+
+  const method = await select({
+    message: "Connect HackMD:",
+    choices: [
+      ...(mcpBaseUrl ? [{
+        name: "Sign in with HackMD OAuth (recommended)",
+        value: "oauth" as const,
+      }] : []),
+      { name: "Enter a HackMD API token", value: "token" as const },
+      { name: "Cancel", value: "cancel" as const },
+    ],
+  });
+  if (method === "oauth") {
+    return mcpBaseUrl ? connectHackMDWithOAuth(mcpBaseUrl, store) : false;
+  }
+  if (method === "cancel") return false;
 
   const apiToken = await password({ message: "Enter HackMD API token", mask: "*" });
   if (!apiToken) return false;
@@ -175,14 +236,17 @@ async function configureLogin(service: ModelService): Promise<boolean> {
   return provider ? loginProvider(service, provider) : false;
 }
 
-export async function setupCommand(isAutoTriggered = false): Promise<void> {
+export async function setupCommand(
+  isAutoTriggered = false,
+  oauthStore: HackMDOAuthStore = new FileHackMDOAuthStore(),
+): Promise<void> {
   printSetupHeader();
   const config = await ConfigurationLoader.load();
   const service = new ModelService(config);
   await service.initialize();
 
-  if (!(await ensureHackMDToken(config))) {
-    console.log(chalk.red("HackMD token is required."));
+  if (!(await ensureHackMDAuth(config, oauthStore))) {
+    console.log(chalk.red("A HackMD OAuth connection or API token is required."));
     return;
   }
 
@@ -209,16 +273,39 @@ export async function setupCommand(isAutoTriggered = false): Promise<void> {
 export async function runInteractiveSetup(
   config: Configuration,
   existingService?: ModelService,
+  options: {
+    oauthStore?: HackMDOAuthStore;
+    onHackMDOAuthDisconnect?: () => void | Promise<void>;
+  } = {},
 ): Promise<boolean> {
   printSetupHeader();
   const service = existingService ?? new ModelService(config);
+  const oauthStore = options.oauthStore ?? new FileHackMDOAuthStore();
   await service.initialize();
+  const resolved = resolveHackMDServiceConfig(
+    config.services.hackmd,
+    await loadHackMDCLIConfig(),
+  );
+  const mcpBaseUrl = resolved.hackmd.mcpBaseUrl;
+  const oauthCredential = mcpBaseUrl
+    ? await readHackMDOAuthCredential({
+      store: oauthStore,
+      serverUrl: mcpBaseUrl,
+      hasApiToken: Boolean(resolved.hackmd.apiToken),
+    })
+    : undefined;
+  const hasOAuth = Boolean(oauthCredential?.tokens);
   const action = await select({
     message: "What would you like to configure?",
     choices: [
       { name: "Log in to a provider", value: "login" },
       { name: "Log out of a provider", value: "logout" },
       { name: "Change default model", value: "model" },
+      ...(mcpBaseUrl ? [{ name: "Connect HackMD with OAuth", value: "hackmd-oauth" }] : []),
+      ...(hasOAuth ? [{
+        name: "Disconnect HackMD OAuth on this device",
+        value: "hackmd-oauth-disconnect",
+      }] : []),
       { name: "HackMD API token", value: "hackmd" },
       { name: "Cancel", value: "cancel" },
     ],
@@ -243,6 +330,18 @@ export async function runInteractiveSetup(
     return true;
   } else if (action === "model") {
     return (await selectDefaultModel(config, service)) !== undefined;
+  } else if (action === "hackmd-oauth") {
+    return mcpBaseUrl ? connectHackMDWithOAuth(mcpBaseUrl, oauthStore) : false;
+  } else if (action === "hackmd-oauth-disconnect") {
+    if (!mcpBaseUrl) return false;
+    await options.onHackMDOAuthDisconnect?.();
+    await oauthStore.delete(mcpBaseUrl);
+    console.log(chalk.green("✓ HackMD OAuth disconnected on this device"));
+    console.log(chalk.gray(
+      "This does not revoke the remote connection. Revoke it from HackMD Connections if needed.",
+    ));
+    console.log(chalk.gray("Restart HackWriter or connect again before using HackMD tools."));
+    return false;
   } else if (action === "hackmd") {
     const apiToken = await password({ message: "Enter HackMD API token", mask: "*" });
     if (!apiToken) return false;

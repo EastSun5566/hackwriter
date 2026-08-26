@@ -170,6 +170,16 @@ describe('HackMD CLI Compatibility', () => {
       });
     });
 
+    it('resolves default endpoints without requiring an API token', () => {
+      expect(resolveHackMDServiceConfig()).toEqual({
+        tokenSource: undefined,
+        hackmd: {
+          apiBaseUrl: DEFAULT_HACKMD_API_URL,
+          mcpBaseUrl: DEFAULT_HACKMD_MCP_URL,
+        },
+      });
+    });
+
     it('does not send a custom API token to the default MCP origin', () => {
       const resolved = resolveHackMDServiceConfig({
         apiToken: 'enterprise-token',

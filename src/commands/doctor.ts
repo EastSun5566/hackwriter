@@ -19,9 +19,11 @@ import {
   CONFIG_FILE,
   DEFAULT_HACKMD_API_URL,
   DEFAULT_HACKMD_MCP_URL,
+  HACKMD_OAUTH_FILE,
   SESSIONS_DIR,
 } from "../config/constants.ts";
 import { MCPClient } from "../mcp/MCPClient.ts";
+import { FileHackMDOAuthStore } from "../mcp/HackMDOAuthStore.ts";
 import { classifyHackMDMcpTool } from "../mcp/HackMDMcpToolPolicies.ts";
 import { formatSafeError } from "../utils/SafeError.ts";
 
@@ -55,6 +57,7 @@ export async function inspectDoctor(
   const network = options.network !== false;
   const configPath = path.join(homeDir, CONFIG_DIR, CONFIG_FILE);
   const authPath = path.join(homeDir, CONFIG_DIR, "auth.json");
+  const hackmdOAuthPath = path.join(homeDir, CONFIG_DIR, HACKMD_OAUTH_FILE);
   const sessionsPath = path.join(homeDir, CONFIG_DIR, SESSIONS_DIR);
 
   const nodeMajor = Number.parseInt(process.versions.node.split(".")[0] ?? "0", 10);
@@ -67,6 +70,7 @@ export async function inspectDoctor(
 
   await inspectMode(configPath, 0o600, "files.config", checks);
   await inspectMode(authPath, 0o600, "files.auth", checks);
+  await inspectMode(hackmdOAuthPath, 0o600, "files.hackmd_oauth", checks);
   await inspectMode(sessionsPath, 0o700, "files.sessions", checks);
   await inspectSessionContents(sessionsPath, checks);
 
@@ -93,26 +97,52 @@ export async function inspectDoctor(
   const resolved = resolveHackMDServiceConfig(config.services.hackmd, cliConfig);
   const apiBaseUrl = resolveHackMDApiBaseUrl(config.services.hackmd, cliConfig);
   const mcpBaseUrl = resolveHackMDMcpBaseUrl(config.services.hackmd, apiBaseUrl);
+  let oauthReadError: unknown;
+  const oauthCredential = mcpBaseUrl
+    ? await new FileHackMDOAuthStore(hackmdOAuthPath, true).read(mcpBaseUrl).catch((error) => {
+      oauthReadError = error;
+      return undefined;
+    })
+    : undefined;
+  const oauthToken = oauthCredential?.tokens?.access_token;
+  const apiToken = resolved.hackmd.apiToken;
   checks.push(endpointCheck(apiBaseUrl, mcpBaseUrl));
-  if (!resolved.hackmd) {
+  checks.push({
+    id: "hackmd.oauth",
+    status: oauthReadError ? "fail" : oauthToken ? "pass" : "skip",
+    summary: oauthReadError
+      ? "HackMD OAuth credentials could not be read"
+      : oauthToken
+      ? "HackMD OAuth credential is available"
+      : "No HackMD OAuth credential is stored",
+    detail: oauthReadError ? formatSafeError(oauthReadError) : undefined,
+  });
+  if (!apiToken && !oauthToken) {
     checks.push({
       id: "hackmd.credential",
       status: "fail",
       summary: "No HackMD credential is available",
-      remediation: "Set HACKMD_API_TOKEN, configure HackMD CLI, or run hackwriter setup.",
+      remediation: "Run hackwriter setup, set HACKMD_API_TOKEN, or configure HackMD CLI.",
     });
     checks.push({ id: "hackmd.api", status: "skip", summary: "HackMD API check requires a credential" });
     checks.push({ id: "hackmd.mcp", status: "skip", summary: "MCP check requires a credential" });
     checks.push({ id: "hackmd.mcp_tools", status: "skip", summary: "MCP tool classification requires a credential" });
   } else {
+    const credentialSources = [
+      oauthToken ? "HackMD OAuth" : undefined,
+      apiToken
+        ? describeHackMDTokenSource(resolved.tokenSource) ?? "configured API token"
+        : undefined,
+    ].filter(Boolean).join(" and ");
     checks.push({
       id: "hackmd.credential",
       status: "pass",
-      summary: `HackMD credential found in ${describeHackMDTokenSource(resolved.tokenSource) ?? "configured source"}`,
+      summary: `HackMD credential found in ${credentialSources}`,
     });
     if (network) {
-      await inspectHackMD(resolved.hackmd.apiToken, resolved.hackmd.apiBaseUrl!, checks);
-      await inspectMcp(resolved.hackmd.apiToken, resolved.hackmd.mcpBaseUrl, checks);
+      if (apiToken) await inspectHackMD(apiToken, resolved.hackmd.apiBaseUrl, checks);
+      else checks.push({ id: "hackmd.api", status: "skip", summary: "HackMD API check requires an API token" });
+      await inspectMcp(oauthToken ?? apiToken, resolved.hackmd.mcpBaseUrl, checks);
     } else {
       checks.push({ id: "hackmd.api", status: "skip", summary: "HackMD API network check disabled" });
       checks.push({ id: "hackmd.mcp", status: "skip", summary: "MCP network check disabled" });
@@ -272,13 +302,23 @@ async function inspectHackMD(token: string, endpoint: string, checks: DoctorChec
   }
 }
 
-async function inspectMcp(token: string, endpoint: string | undefined, checks: DoctorCheck[]): Promise<void> {
+async function inspectMcp(token: string | undefined, endpoint: string | undefined, checks: DoctorCheck[]): Promise<void> {
   if (!endpoint) {
     checks.push({ id: "hackmd.mcp", status: "skip", summary: "MCP is not configured for this API endpoint" });
     checks.push({ id: "hackmd.mcp_tools", status: "skip", summary: "MCP tool classification is unavailable" });
     return;
   }
-  const client = new MCPClient({ serverUrl: endpoint, apiToken: token, timeoutMs: 5000, maxRetries: 0 });
+  if (!token) {
+    checks.push({ id: "hackmd.mcp", status: "skip", summary: "MCP check requires a credential" });
+    checks.push({ id: "hackmd.mcp_tools", status: "skip", summary: "MCP tool classification requires a credential" });
+    return;
+  }
+  const client = new MCPClient({
+    serverUrl: endpoint,
+    auth: { type: "bearer", token },
+    timeoutMs: 5000,
+    maxRetries: 0,
+  });
   try {
     await client.connect(AbortSignal.timeout(5000));
     const tools = await client.listTools(AbortSignal.timeout(5000));

@@ -5,7 +5,7 @@
 ## Requirements
 
 - Node.js 24
-- A HackMD API token
+- A HackMD account (connected with OAuth), or a HackMD API token
 - Credentials for at least one model provider, or a running Ollama server
 
 ## Install and start
@@ -14,7 +14,7 @@
 npx hackwriter
 ```
 
-`hackwriter setup` supports provider API-key login, OAuth login/logout, ambient credential status, and default-model selection. Model-provider credentials are stored in `~/.hackwriter/auth.json`; a HackMD token explicitly entered in setup is stored in the protected `config.json`.
+`hackwriter setup` connects HackMD with browser OAuth by default and also supports a manually entered HackMD API token. It supports model-provider API-key login, OAuth login/logout, ambient credential status, and default-model selection. Model-provider credentials are stored in `~/.hackwriter/auth.json`; HackMD OAuth credentials are stored separately in `~/.hackwriter/hackmd-oauth.json`; a HackMD token explicitly entered in setup is stored in the protected `config.json`.
 
 HackWriter also detects the provider environment variables supported by pi-ai, such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `AWS_PROFILE`, Google Application Default Credentials, and provider-specific variables.
 
@@ -65,7 +65,7 @@ Interactive model commands:
 
 ## Configuration
 
-`~/.hackwriter/config.json` uses version 2. It contains non-LLM settings, including an explicitly entered HackMD token, and is written atomically with mode `0600`.
+`~/.hackwriter/config.json` uses version 2. It contains non-LLM settings, including an optional explicitly entered HackMD token, and is written atomically with mode `0600`.
 
 ```json
 {
@@ -96,9 +96,13 @@ Interactive model commands:
 }
 ```
 
-On first load, an unversioned config is migrated idempotently: legacy provider API keys move to `~/.hackwriter/auth.json`, while custom model aliases, endpoint overrides, OpenAI organization/project IDs, and the legacy default model are retained. Both secret-bearing files are forced to `0600`.
+On first load, an unversioned config is migrated idempotently: legacy provider API keys move to `~/.hackwriter/auth.json`, while custom model aliases, endpoint overrides, OpenAI organization/project IDs, and the legacy default model are retained. Secret-bearing files are written atomically with mode `0600`; the containing directory uses `0700`.
+
+HackMD OAuth uses an ephemeral loopback callback on `127.0.0.1`, dynamic client registration, and S256 PKCE. Authorization URLs are printed for you to open in a browser. OAuth access tokens and dynamic client information are isolated by MCP endpoint. If a connection expires or is revoked, an interactive run can authorize again; `--command` and `doctor` never start a browser login.
 
 When a custom HackMD API endpoint is configured, HackWriter uses it for local SDK calls. It only connects to the official HackMD MCP endpoint for the official API origin, or when an explicit MCP URL is configured; credentials are never forwarded across origins implicitly.
+
+OAuth-only mode uses remote MCP tools and does not expose `export_note` or the local HackMD API fallback. Supplying an API token remains optional and enables those two capabilities. Existing API-token and HackMD CLI configurations continue to work unchanged.
 
 ## Usage
 
@@ -114,7 +118,9 @@ hackwriter doctor --json           # machine-readable diagnostics
 
 Local `read_file`, `list_files`, `write_file`, and Markdown-only `export_note` operations are restricted to the startup working directory, including real-path and symlink checks. Writes outside that boundary are rejected before approval is requested. Sensitive files such as `.env`, credentials, and private keys require approval on every read; `.env.example` is not treated as secret. Mutation approvals are scoped to the exact file, note, or team.
 
-`doctor` checks configuration, permissions, credentials, model availability, Ollama, HackMD API/MCP connectivity, MCP tool classification, and endpoint policy without logging in, mutating data, or writing credentials. Each network check has a five-second deadline. `warn` does not fail the command; any `fail` does.
+`doctor` checks configuration, OAuth/API-token status, permissions, model availability, Ollama, HackMD API/MCP connectivity, MCP tool classification, and endpoint policy without logging in, registering an OAuth client, mutating data, or writing credentials. Each network check has a five-second deadline. `warn` does not fail the command; any `fail` does.
+
+Disconnecting HackMD OAuth in `/setup` removes the credential and closes the MCP connection on this device. It does not revoke the server-side connection; use HackMD Connections settings when remote revocation is required.
 
 Command exit codes are `0` for success, `1` for a terminal failure or turn limit, and `130` when the user aborts an active command. SIGTERM exits with `143` after bounded cleanup.
 
